@@ -51,26 +51,37 @@ export default function App() {
     }
   }, [selectedTenant]);
 
-  // Filter routes based on user permissions
-  const filteredAdminRoutes = adminRoutes.filter(r => currentUser?.allowedMenus?.includes(r.path));
-  const filteredClientRoutes = clientRoutes.filter(r => currentUser?.allowedMenus?.includes(r.path));
+  // Filter routes based on user permissions (Global Admin gets full access)
+  const isGlobalAdmin = currentUser?.role === 'global_admin' || currentUser?.role === 'super_admin' || currentUser?.isGlobalAdmin;
+  const allowed = currentUser?.allowedMenus || [];
+
+  const isPathAllowed = (path) => {
+    if (isGlobalAdmin) return true;
+    if (allowed.includes(path)) return true;
+    if (path === 'conversations' && (allowed.includes('conversations') || allowed.includes('conversationHistory') || isGlobalAdmin)) return true;
+    if (path === 'chat' && (allowed.includes('playground') || allowed.includes('chat'))) return true;
+    if (path === 'playground' && (allowed.includes('chat') || allowed.includes('playground'))) return true;
+    return false;
+  };
+
+  const filteredAdminRoutes = adminRoutes.filter(r => isPathAllowed(r.path));
+  const filteredClientRoutes = clientRoutes.filter(r => isPathAllowed(r.path));
   const portalRoutes = selectedPortal === 'admin' ? filteredAdminRoutes : filteredClientRoutes;
 
   // Align active route path on user login or route mismatch
   useEffect(() => {
     if (currentUser) {
-      const allowed = currentUser.allowedMenus || [];
-      // If current active route is not in allowed list, select the first allowed route
-      if (!allowed.includes(activeRoutePath)) {
-        if (allowed.length > 0) {
-          const firstAllowed = allowed[0];
-          const inAdmin = adminRoutes.some(r => r.path === firstAllowed);
-          setSelectedPortal(inAdmin ? 'admin' : 'client');
-          setActiveRoutePath(firstAllowed);
+      if (!isPathAllowed(activeRoutePath)) {
+        const routes = selectedPortal === 'admin' ? filteredAdminRoutes : filteredClientRoutes;
+        if (routes.length > 0) {
+          setActiveRoutePath(routes[0].path);
+        } else if (filteredAdminRoutes.length > 0) {
+          setSelectedPortal('admin');
+          setActiveRoutePath(filteredAdminRoutes[0].path);
         }
       }
     }
-  }, [currentUser, activeRoutePath]);
+  }, [currentUser, activeRoutePath, selectedPortal]);
 
   // Safe portal switcher that falls back to first allowed route inside selected portal
   const handlePortalSwitch = (portal) => {

@@ -1,7 +1,9 @@
 import TenantsList from './TenantsList';
 import Analytics from './Analytics';
 import Ingestion from './Ingestion';
-import { Building2, BarChart3, Database } from 'lucide-react';
+import ConversationHistory from './ConversationHistory';
+import ChatPlayground from '../client/ChatPlayground';
+import { Building2, BarChart3, Database, MessageSquare, History } from 'lucide-react';
 
 export const adminRoutes = [
   {
@@ -21,5 +23,17 @@ export const adminRoutes = [
     label: 'Ingestion Manager',
     icon: Database,
     component: Ingestion
+  },
+  {
+    path: 'conversations',
+    label: 'Conversation History',
+    icon: History,
+    component: ConversationHistory
+  },
+  {
+    path: 'chat',
+    label: 'Chat Playground',
+    icon: MessageSquare,
+    component: ChatPlayground
   }
 ];
