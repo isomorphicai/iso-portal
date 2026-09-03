@@ -3,6 +3,9 @@ import { X, Sliders, Palette, MessageSquare, FormInput, Code, Save, Loader2, Bot
 
 const DEFAULT_BOT_UI_CONFIGS = {
   botThemeColor: "#00306D",
+  botHeaderTextColor: "#FFFFFF",
+  botHeaderIconColor: "#FFFFFF",
+  botAvatarIconColor: "#FFFFFF",
   botChatStartImage: "https://bbh-product-bucket.s3.us-east-2.amazonaws.com/a04ac944-0efc-4f92-84cd-9463c94f0505.png",
   botResponseBackgroundColor: "#EFEFEF",
   userQueryBackgroundColor: "#EFEFEF",
@@ -391,6 +394,30 @@ export default function ChatClientModal({
                   <div className="flex items-center gap-2">
                     <input type="color" value={formData.botUIConfigs?.bgColor || "#ffffff"} onChange={(e) => updateUIField("bgColor", e.target.value)} className="w-8 h-8 rounded border border-iso-border cursor-pointer p-0 bg-transparent shrink-0" />
                     <input type="text" value={formData.botUIConfigs?.bgColor || "#ffffff"} onChange={(e) => updateUIField("bgColor", e.target.value)} className="w-full bg-iso-cardBg border border-iso-border rounded px-2 py-1 text-xs font-mono text-iso-text outline-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-3 bg-iso-bg border border-iso-border rounded-sm">
+                  <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">Header Bot Name Color</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={formData.botUIConfigs?.botHeaderTextColor || "#FFFFFF"} onChange={(e) => updateUIField("botHeaderTextColor", e.target.value)} className="w-8 h-8 rounded border border-iso-border cursor-pointer p-0 bg-transparent shrink-0" />
+                    <input type="text" value={formData.botUIConfigs?.botHeaderTextColor || "#FFFFFF"} onChange={(e) => updateUIField("botHeaderTextColor", e.target.value)} className="w-full bg-iso-cardBg border border-iso-border rounded px-2 py-1 text-xs font-mono text-iso-text outline-none" />
+                  </div>
+                </div>
+                <div className="p-3 bg-iso-bg border border-iso-border rounded-sm">
+                  <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">Header & Actions Icons Color</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={formData.botUIConfigs?.botHeaderIconColor || "#FFFFFF"} onChange={(e) => updateUIField("botHeaderIconColor", e.target.value)} className="w-8 h-8 rounded border border-iso-border cursor-pointer p-0 bg-transparent shrink-0" />
+                    <input type="text" value={formData.botUIConfigs?.botHeaderIconColor || "#FFFFFF"} onChange={(e) => updateUIField("botHeaderIconColor", e.target.value)} className="w-full bg-iso-cardBg border border-iso-border rounded px-2 py-1 text-xs font-mono text-iso-text outline-none" />
+                  </div>
+                </div>
+                <div className="p-3 bg-iso-bg border border-iso-border rounded-sm">
+                  <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">Bot Avatar Icon Color</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={formData.botUIConfigs?.botAvatarIconColor || "#FFFFFF"} onChange={(e) => updateUIField("botAvatarIconColor", e.target.value)} className="w-8 h-8 rounded border border-iso-border cursor-pointer p-0 bg-transparent shrink-0" />
+                    <input type="text" value={formData.botUIConfigs?.botAvatarIconColor || "#FFFFFF"} onChange={(e) => updateUIField("botAvatarIconColor", e.target.value)} className="w-full bg-iso-cardBg border border-iso-border rounded px-2 py-1 text-xs font-mono text-iso-text outline-none" />
                   </div>
                 </div>
               </div>
