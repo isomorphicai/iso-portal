@@ -413,13 +413,20 @@ export default function ChatPlayground({
           {messages.map(msg => (
             <div 
               key={msg.id} 
-              className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+              className={`flex items-end gap-2 ${msg.role === 'user' ? 'flex-row-reverse self-end max-w-[85%]' : 'flex-row self-start max-w-[85%]'}`}
             >
+              {/* Avatar */}
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white shadow-2xs ${
+                msg.role === 'user' ? 'bg-iso-primary' : 'bg-slate-700'
+              }`}>
+                {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
+              </div>
+
               <div 
-                className={`max-w-[85%] rounded-md p-3.5 leading-relaxed shadow-2xs ${
+                className={`p-3.5 leading-relaxed shadow-2xs ${
                   msg.role === 'user' 
-                    ? 'bg-iso-primary text-white font-medium' 
-                    : 'bg-iso-cardBg border border-iso-border text-iso-text'
+                    ? 'bg-iso-primary text-white font-medium rounded-2xl rounded-br-xs' 
+                    : 'bg-iso-cardBg border border-iso-border text-iso-text rounded-2xl rounded-bl-xs'
                 }`}
               >
                 {msg.role === 'user' ? (

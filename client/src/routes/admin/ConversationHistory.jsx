@@ -3,7 +3,7 @@ import {
   History, MessageSquare, Search, Filter, RefreshCw, Trash2,
   Download, Clock, Calendar, Building2, Bot, CheckCircle2,
   AlertCircle, ChevronRight, ExternalLink, ArrowUpDown, User,
-  Sparkles, ShieldCheck
+  Sparkles, ShieldCheck, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 
 function escapeHTML(str) {
@@ -589,19 +589,26 @@ export default function ConversationHistory({
                     <div key={msg._id || idx} className="flex flex-col gap-2.5">
                       
                       {/* User Message */}
-                      <div className="flex flex-col items-end">
-                        <div className="max-w-[85%] bg-iso-primary text-white font-medium rounded-md p-3 shadow-2xs text-xs">
-                          {msg.query}
+                      <div className="flex items-end gap-2 flex-row-reverse self-end max-w-[85%]">
+                        <div className="w-6 h-6 rounded-full bg-iso-primary flex items-center justify-center shrink-0 text-white shadow-2xs">
+                          <User size={13} />
                         </div>
-                        <span className="text-[9px] font-mono text-iso-textMuted mt-1 px-1">
-                          {new Date(msg.queryReceivedAt || msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                        </span>
+                        <div className="flex flex-col items-end">
+                          <div className="bg-iso-primary text-white font-medium rounded-2xl rounded-br-xs p-3 shadow-2xs text-xs">
+                            {msg.query}
+                          </div>
+                          <span className="text-[9px] font-mono text-iso-textMuted mt-1 px-1">
+                            {new Date(msg.queryReceivedAt || msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Bot Message */}
-                      <div className="flex flex-col items-start">
-                        <div className="max-w-[85%] bg-iso-cardBg border border-iso-border text-iso-text rounded-md p-3 shadow-2xs text-xs leading-relaxed">
-                          
+                      <div className="flex items-start gap-2 flex-row self-start max-w-[85%]">
+                        <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center shrink-0 text-white shadow-2xs mt-1">
+                          <Bot size={13} />
+                        </div>
+                        <div className="flex-1 bg-iso-cardBg border border-iso-border text-iso-text rounded-2xl rounded-bl-xs p-3 shadow-2xs text-xs leading-relaxed">
                           <div 
                             className="prose prose-sm max-w-none text-xs leading-relaxed"
                             dangerouslySetInnerHTML={{ __html: renderFormattedMarkdown(msg.answer) }}
@@ -637,6 +644,27 @@ export default function ConversationHistory({
                           {/* Telemetry Pill */}
                           <div className="mt-2.5 pt-2 border-t border-iso-border/50 flex flex-wrap items-center gap-2 text-[9px] font-mono text-iso-textMuted">
                             
+                            {/* Thumbs Up / Down Feedback Badge */}
+                            {(msg.userFeedback || msg.feedbackType) && (
+                              <span className={`px-2 py-0.5 rounded-full border font-bold flex items-center gap-1 shadow-2xs ${
+                                (msg.userFeedback === 'like' || msg.feedbackType === 'like')
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                  : 'bg-rose-50 text-rose-700 border-rose-300'
+                              }`}>
+                                {(msg.userFeedback === 'like' || msg.feedbackType === 'like') ? (
+                                  <>
+                                    <ThumbsUp size={10} className="text-emerald-600" />
+                                    <span>Helpful</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ThumbsDown size={10} className="text-rose-600" />
+                                    <span>Not Helpful</span>
+                                  </>
+                                )}
+                              </span>
+                            )}
+
                             {msg.intent && (
                               <span className={`px-1.5 py-0.2 rounded border font-bold ${
                                 msg.intent === 'smalltalk' ? 'bg-amber-50 text-amber-800 border-amber-200' :
