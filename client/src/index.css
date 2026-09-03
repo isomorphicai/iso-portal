@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-iso-bg text-iso-text antialiased selection:bg-iso-accent selection:text-white;
+  }
+  
+  h1, h2, h3, h4 {
+    @apply text-iso-primary font-medium font-serif;
+  }
+}
+
+/* Custom crisp minimal scrollbars */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F3F1EB;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #E2DFD6;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #C5A059;
+}
