@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import Toast from './components/Toast';
 import Login from './components/Login';
+import { apiUrl } from './config/api';
 
 // Import Modular Portal routes configurations
 import { adminRoutes } from './routes/admin/routes';
@@ -123,7 +124,7 @@ export default function App() {
   // API Call: Fetch all tenants
   const fetchTenants = async (selectId = null) => {
     try {
-      const res = await fetch('/api/admin/tenants');
+      const res = await fetch(apiUrl('/api/admin/tenants'));
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       setTenants(list);
@@ -146,7 +147,7 @@ export default function App() {
   // API Call: Fetch bots for active tenant
   const fetchBots = async (tenantId, selectId = null) => {
     try {
-      const res = await fetch(`/api/admin/bots?tenantId=${tenantId}`);
+      const res = await fetch(apiUrl(`/api/admin/bots?tenantId=${tenantId}`));
       const data = await res.json();
       setBots(data);
       if (data.length > 0) {
