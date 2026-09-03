@@ -14,6 +14,7 @@ const DEFAULT_BOT_UI_CONFIGS = {
   bgColor: "#ffffff",
   logoUrl: "https://bbh-product-bucket.s3.us-east-2.amazonaws.com/a04ac944-0efc-4f92-84cd-9463c94f0505.png",
   botHeaderText: "AI Assistant",
+  botStatusText: "Online",
   DefaultEmptyMessage: "",
   helpNotificationRenderTime: 10000,
   helpNotificationRenderMsg: "Hi! I am an AI Assistant. How can I help you today?",
@@ -377,7 +378,7 @@ export default function ChatClientModal({
           {/* TAB 2: WIDGET UI & THEME */}
           {activeTab === "ui_theme" && (
             <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="p-3 bg-iso-bg border border-iso-border rounded-sm">
                   <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">Primary Theme Color</label>
                   <div className="flex items-center gap-2">
@@ -388,6 +389,10 @@ export default function ChatClientModal({
                 <div className="p-3 bg-iso-bg border border-iso-border rounded-sm">
                   <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">Header Title Text</label>
                   <input type="text" value={formData.botUIConfigs?.botHeaderText || ""} onChange={(e) => updateUIField("botHeaderText", e.target.value)} placeholder="ISO AI" className="w-full bg-iso-cardBg border border-iso-border rounded px-2.5 py-1 text-xs text-iso-text outline-none" />
+                </div>
+                <div className="p-3 bg-iso-bg border border-iso-border rounded-sm">
+                  <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">Status Subtitle (Online Text)</label>
+                  <input type="text" value={formData.botUIConfigs?.botStatusText || ""} onChange={(e) => updateUIField("botStatusText", e.target.value)} placeholder="Online / Always Available" className="w-full bg-iso-cardBg border border-iso-border rounded px-2.5 py-1 text-xs text-iso-text outline-none" />
                 </div>
                 <div className="p-3 bg-iso-bg border border-iso-border rounded-sm">
                   <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">Widget Background</label>
