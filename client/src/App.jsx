@@ -217,9 +217,10 @@ export default function App() {
 
   // Filter routes based on user permissions (Global Admin gets full access)
   const isGlobalAdmin = currentUser?.role === 'global_admin' || currentUser?.role === 'super_admin' || currentUser?.isGlobalAdmin;
-  const allowed = currentUser?.allowedMenus || [];
-
   const isPathAllowed = (path) => {
+    const allRoutes = [...adminRoutes, ...clientRoutes];
+    const routeObj = allRoutes.find(r => r.path === path);
+    if (routeObj?.superAdminOnly && !isGlobalAdmin) return false;
     if (isGlobalAdmin) return true;
     if (allowed.includes(path)) return true;
     if (path === 'conversations' && (allowed.includes('conversations') || allowed.includes('conversationHistory') || isGlobalAdmin)) return true;

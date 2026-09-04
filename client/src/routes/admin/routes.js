@@ -1,16 +1,24 @@
 import TenantsList from './TenantsList';
+import SystemSettings from './SystemSettings';
 import Analytics from './Analytics';
 import Ingestion from './Ingestion';
 import ConversationHistory from './ConversationHistory';
 import ChatPlayground from '../client/ChatPlayground';
-import { Building2, BarChart3, Database, MessageSquare, History } from 'lucide-react';
+import { Building2, BarChart3, Database, MessageSquare, History, Shield } from 'lucide-react';
 
 export const adminRoutes = [
   {
     path: 'tenants',
-    label: 'Tenants & Roles',
+    label: 'Tenants',
     icon: Building2,
     component: TenantsList
+  },
+  {
+    path: 'system_settings',
+    label: 'Roles & Pages',
+    icon: Shield,
+    component: SystemSettings,
+    superAdminOnly: true
   },
   {
     path: 'analytics',
@@ -37,3 +45,4 @@ export const adminRoutes = [
     component: ChatPlayground
   }
 ];
+

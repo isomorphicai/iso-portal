@@ -1,16 +1,14 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
-  Building2, Bot as BotIcon, Shield, Users, 
+  Building2, Bot as BotIcon, Users, 
   Plus, Trash2, Edit3, ArrowLeft,
-  Sparkles, Loader2, Database, Menu as MenuIcon,
+  Sparkles, Loader2, Database,
   Search, ArrowUpDown, ArrowUp, ArrowDown, Palette, Globe, Clock, X
 } from "lucide-react";
 
 import TenantModal from "./components/TenantModal";
 import ChatClientModal from "./components/ChatClientModal";
 import GenAISettingsModal from "./components/GenAISettingsModal";
-import GlobalRolesTab from "./components/GlobalRolesTab";
-import NavigationMenusTab from "./components/NavigationMenusTab";
 import TenantUsersModal from "./components/TenantUsersModal";
 import ConfirmModal from "../../components/ConfirmModal";
 
@@ -24,12 +22,10 @@ export default function TenantsList({
   showToast,
   setCurrentMenu
 }) {
-  // Top-level Admin Tabs: "tenants" | "roles" | "menus"
-  const [adminTab, setAdminTab] = useState("tenants");
-
-  // Subview within "tenants" tab: "list" | "bots"
+  // Subview within Tenants management: "list" | "bots"
   const [subView, setSubView] = useState("list");
   const [activeTenant, setActiveTenant] = useState(null);
+
 
   // Search & Sorting for Tenants Table
   const [tenantSearch, setTenantSearch] = useState("");
@@ -339,50 +335,8 @@ export default function TenantsList({
   return (
     <div className="max-w-6xl mx-auto flex flex-col gap-6">
       
-      {/* TOP NAVIGATION TABS */}
-      <div className="flex items-center justify-between border-b border-iso-border pb-1">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              setAdminTab("tenants");
-              setSubView("list");
-            }}
-            className={`px-4 py-2 font-serif text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-              adminTab === "tenants"
-                ? "border-iso-primary text-iso-primary"
-                : "border-transparent text-iso-textMuted hover:text-iso-text"
-            }`}
-          >
-            <Building2 size={16} /> Tenants &amp; Workspaces
-          </button>
-          <button
-            type="button"
-            onClick={() => setAdminTab("roles")}
-            className={`px-4 py-2 font-serif text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-              adminTab === "roles"
-                ? "border-iso-primary text-iso-primary"
-                : "border-transparent text-iso-textMuted hover:text-iso-text"
-            }`}
-          >
-            <Shield size={16} /> Global Roles
-          </button>
-          <button
-            type="button"
-            onClick={() => setAdminTab("menus")}
-            className={`px-4 py-2 font-serif text-sm font-bold border-b-2 transition-all flex items-center gap-2 ${
-              adminTab === "menus"
-                ? "border-iso-primary text-iso-primary"
-                : "border-transparent text-iso-textMuted hover:text-iso-text"
-            }`}
-          >
-            <MenuIcon size={16} /> Navigation Menus
-          </button>
-        </div>
-      </div>
-
-      {/* TAB 1: TENANTS & WORKSPACES */}
-      {adminTab === "tenants" && subView === "list" && (
+      {/* TENANTS & WORKSPACES */}
+      {subView === "list" && (
         <div className="flex flex-col gap-5">
           
           <div className="border-b border-iso-border pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
@@ -857,16 +811,6 @@ export default function TenantsList({
             </table>
           </div>
         </div>
-      )}
-
-      {/* TAB 2: GLOBAL ROLES */}
-      {adminTab === "roles" && (
-        <GlobalRolesTab showToast={showToast} />
-      )}
-
-      {/* TAB 3: NAVIGATION MENUS */}
-      {adminTab === "menus" && (
-        <NavigationMenusTab showToast={showToast} />
       )}
 
       {/* MODALS */}
