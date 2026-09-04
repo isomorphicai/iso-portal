@@ -11,6 +11,7 @@ import ChatClientModal from "./components/ChatClientModal";
 import GenAISettingsModal from "./components/GenAISettingsModal";
 import TenantUsersModal from "./components/TenantUsersModal";
 import ConfirmModal from "../../components/ConfirmModal";
+import TablePagination from "../../components/TablePagination";
 
 export default function TenantsList({
   tenants,
@@ -26,16 +27,17 @@ export default function TenantsList({
   const [subView, setSubView] = useState("list");
   const [activeTenant, setActiveTenant] = useState(null);
 
-
   // Search & Sorting for Tenants Table
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantSortField, setTenantSortField] = useState("name");
   const [tenantSortAsc, setTenantSortAsc] = useState(true);
+  const [tenantPage, setTenantPage] = useState(1);
 
   // Search & Sorting for Chatbots Table
   const [botSearch, setBotSearch] = useState("");
   const [botSortField, setBotSortField] = useState("botName");
   const [botSortAsc, setBotSortAsc] = useState(true);
+  const [botPage, setBotPage] = useState(1);
 
   // Chatbots List for active tenant
   const [tenantBots, setTenantBots] = useState([]);
@@ -148,6 +150,16 @@ export default function TenantsList({
     return result;
   }, [tenants, tenantSearch, tenantSortField, tenantSortAsc]);
 
+  // Reset tenant page on filter/sort changes
+  useEffect(() => {
+    setTenantPage(1);
+  }, [tenantSearch, tenantSortField, tenantSortAsc]);
+
+  const paginatedTenants = useMemo(() => {
+    const start = (tenantPage - 1) * 10;
+    return filteredAndSortedTenants.slice(start, start + 10);
+  }, [filteredAndSortedTenants, tenantPage]);
+
   // Bots Sort & Filter
   const handleBotSort = (field) => {
     if (botSortField === field) {
@@ -208,6 +220,16 @@ export default function TenantsList({
 
     return result;
   }, [tenantBots, botSearch, botSortField, botSortAsc]);
+
+  // Reset bot page on filter/sort/subView changes
+  useEffect(() => {
+    setBotPage(1);
+  }, [botSearch, botSortField, botSortAsc, activeTenant]);
+
+  const paginatedBots = useMemo(() => {
+    const start = (botPage - 1) * 10;
+    return filteredAndSortedBots.slice(start, start + 10);
+  }, [filteredAndSortedBots, botPage]);
 
   const renderSortIcon = (activeField, field, asc) => {
     if (activeField !== field) return <ArrowUpDown size={11} className="text-iso-textMuted/40" />;
@@ -470,7 +492,7 @@ export default function TenantsList({
                     </td>
                   </tr>
                 ) : (
-                  filteredAndSortedTenants.map(t => {
+                  paginatedTenants.map(t => {
                     const themeColor = t.tenantConfig?.ButtonandLeftBarColor || "#00306D";
                     return (
                       <tr key={t._id} className="border-b border-iso-border/40 hover:bg-iso-bgSecondary/20 transition-colors">
@@ -557,6 +579,14 @@ export default function TenantsList({
                 )}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            <TablePagination
+              currentPage={tenantPage}
+              totalItems={filteredAndSortedTenants.length}
+              pageSize={10}
+              onPageChange={setTenantPage}
+            />
           </div>
         </div>
       )}
@@ -710,7 +740,7 @@ export default function TenantsList({
                     </td>
                   </tr>
                 ) : (
-                  filteredAndSortedBots.map(b => {
+                  paginatedBots.map(b => {
                     const botTheme = b.botUIConfigs?.botThemeColor || "#00306D";
                     const formsCount = (b.customForms || []).length;
                     return (
@@ -809,6 +839,14 @@ export default function TenantsList({
                 )}
               </tbody>
             </table>
+
+            {/* Chatbots Pagination Controls */}
+            <TablePagination
+              currentPage={botPage}
+              totalItems={filteredAndSortedBots.length}
+              pageSize={10}
+              onPageChange={setBotPage}
+            />
           </div>
         </div>
       )}

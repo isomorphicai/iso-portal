@@ -4,6 +4,7 @@ import {
   Search, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
 import ConfirmModal from "../../../components/ConfirmModal";
+import TablePagination from "../../../components/TablePagination";
 
 export default function TenantUsersModal({
   isOpen,
@@ -19,6 +20,7 @@ export default function TenantUsersModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState("username");
   const [sortAsc, setSortAsc] = useState(true);
+  const [userPage, setUserPage] = useState(1);
 
   // User form states
   const [showUserModal, setShowUserModal] = useState(false);
@@ -110,6 +112,16 @@ export default function TenantUsersModal({
 
     return result;
   }, [tenantUsers, searchQuery, sortField, sortAsc]);
+
+  // Reset page on search, sort, or modal open
+  useEffect(() => {
+    setUserPage(1);
+  }, [searchQuery, sortField, sortAsc, isOpen, activeTenant]);
+
+  const paginatedUsers = useMemo(() => {
+    const start = (userPage - 1) * 10;
+    return filteredAndSortedUsers.slice(start, start + 10);
+  }, [filteredAndSortedUsers, userPage]);
 
   const handleOpenAddUser = () => {
     setEditingUser(null);
@@ -340,7 +352,7 @@ export default function TenantUsersModal({
                         </td>
                       </tr>
                     ) : (
-                      filteredAndSortedUsers.map(u => (
+                      paginatedUsers.map(u => (
                         <tr key={u._id || u.username} className="border-b border-iso-border/40 hover:bg-iso-bgSecondary/20 transition-colors">
                           <td className="py-3 px-3 font-bold text-iso-primary flex items-center gap-2">
                             <KeyRound size={13} className="text-iso-accent" />
@@ -387,6 +399,14 @@ export default function TenantUsersModal({
                     )}
                   </tbody>
                 </table>
+
+                {/* Tenant Users Pagination */}
+                <TablePagination
+                  currentPage={userPage}
+                  totalItems={filteredAndSortedUsers.length}
+                  pageSize={10}
+                  onPageChange={setUserPage}
+                />
               </div>
             </div>
           )}

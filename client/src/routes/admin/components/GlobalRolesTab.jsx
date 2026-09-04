@@ -4,6 +4,7 @@ import {
   Search, ArrowUpDown, ArrowUp, ArrowDown, Sliders, LayoutGrid, Menu
 } from "lucide-react";
 import ConfirmModal from "../../../components/ConfirmModal";
+import TablePagination from "../../../components/TablePagination";
 import { apiUrl } from "../../../config/api";
 
 const ALL_AVAILABLE_WIDGETS = [
@@ -34,6 +35,7 @@ export default function GlobalRolesTab({ showToast }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState("roleName");
   const [sortAsc, setSortAsc] = useState(true);
+  const [rolesPage, setRolesPage] = useState(1);
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -121,6 +123,16 @@ export default function GlobalRolesTab({ showToast }) {
 
     return result;
   }, [roles, searchQuery, sortField, sortAsc]);
+
+  // Reset page on search or sort change
+  useEffect(() => {
+    setRolesPage(1);
+  }, [searchQuery, sortField, sortAsc]);
+
+  const paginatedRoles = useMemo(() => {
+    const start = (rolesPage - 1) * 10;
+    return filteredAndSortedRoles.slice(start, start + 10);
+  }, [filteredAndSortedRoles, rolesPage]);
 
   const handleOpenCreate = () => {
     setEditingRole(null);
@@ -352,7 +364,7 @@ export default function GlobalRolesTab({ showToast }) {
                 </td>
               </tr>
             ) : (
-              filteredAndSortedRoles.map(r => {
+              paginatedRoles.map(r => {
                 const widgetsCount = Array.isArray(r.allowedWidgets) && r.allowedWidgets.length > 0 
                   ? r.allowedWidgets.length 
                   : (r.isSystemRole || r.roleId === 'super_admin' ? ALL_AVAILABLE_WIDGETS.length : ALL_AVAILABLE_WIDGETS.length);
@@ -426,6 +438,14 @@ export default function GlobalRolesTab({ showToast }) {
             )}
           </tbody>
         </table>
+
+        {/* Roles Table Pagination */}
+        <TablePagination
+          currentPage={rolesPage}
+          totalItems={filteredAndSortedRoles.length}
+          pageSize={10}
+          onPageChange={setRolesPage}
+        />
       </div>
 
       {/* CREATE / EDIT ROLE MODAL */}

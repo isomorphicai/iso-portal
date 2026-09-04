@@ -65,7 +65,7 @@ export default function CustomDropdown({
         type="button"
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
-        className={`bg-iso-cardBg border border-iso-border hover:border-iso-primary/40 focus:border-iso-accent focus:ring-1 focus:ring-iso-accent/30 text-iso-text font-medium rounded-sm flex items-center justify-between gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses[size] || sizeClasses.sm} ${buttonClassName}`}
+        className={`w-full bg-iso-cardBg border border-iso-border hover:border-iso-primary/40 focus:border-iso-accent focus:ring-1 focus:ring-iso-accent/30 text-iso-text font-medium rounded-sm flex items-center justify-between gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${sizeClasses[size] || sizeClasses.sm} ${buttonClassName}`}
       >
         <div className="flex items-center gap-1.5 truncate">
           {Icon && <Icon size={13} className="text-iso-textMuted shrink-0" />}
@@ -88,10 +88,10 @@ export default function CustomDropdown({
         />
       </button>
 
-      {/* Floating Menu Popover */}
+      {/* Floating Menu Popover (exact same width as selector) */}
       {isOpen && (
         <div 
-          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} z-50 mt-1 min-w-[180px] max-w-xs max-h-60 bg-iso-cardBg border border-iso-border rounded-sm shadow-xl overflow-y-auto p-1 animate-in fade-in zoom-in-95 duration-100 ${menuClassName}`}
+          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} z-50 mt-1 w-full min-w-full max-h-60 bg-iso-cardBg border border-iso-border rounded-sm shadow-xl overflow-y-auto p-1 animate-in fade-in zoom-in-95 duration-100 ${menuClassName}`}
         >
           {normalizedOptions.length === 0 ? (
             <div className="px-3 py-2 text-xs text-iso-textMuted italic text-center">
@@ -106,26 +106,26 @@ export default function CustomDropdown({
                   type="button"
                   disabled={opt.disabled}
                   onClick={() => !opt.disabled && handleSelect(opt.value)}
-                  className={`w-full px-2.5 py-1.5 rounded-xs text-xs font-medium flex items-center justify-between gap-2 transition-colors text-left cursor-pointer ${
+                  className={`w-full px-2 py-1.5 rounded-xs text-xs font-medium flex items-center justify-between gap-1.5 transition-colors text-left cursor-pointer ${
                     opt.disabled ? 'opacity-40 cursor-not-allowed' :
                     isSelected 
                       ? 'bg-iso-primary text-white font-bold shadow-xs' 
                       : 'text-iso-text hover:bg-iso-bgSecondary hover:text-iso-primary'
                   }`}
                 >
-                  <div className="flex items-center gap-2 truncate">
+                  <div className="flex items-center gap-1.5 truncate min-w-0">
                     {opt.icon && <span className="shrink-0">{opt.icon}</span>}
-                    <div className="flex flex-col truncate">
+                    <div className="flex flex-col truncate min-w-0">
                       <span className="truncate">{opt.label}</span>
                       {opt.description && (
-                        <span className={`text-[10px] font-normal leading-none ${isSelected ? 'text-white/80' : 'text-iso-textMuted'}`}>
+                        <span className={`text-[10px] font-normal leading-none truncate ${isSelected ? 'text-white/80' : 'text-iso-textMuted'}`}>
                           {opt.description}
                         </span>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="flex items-center gap-1 shrink-0">
                     {opt.badge && (
                       <span className={`px-1 py-0.2 rounded text-[9px] font-mono ${
                         isSelected ? 'bg-white/20 text-white' : 'bg-iso-bg text-iso-textMuted border border-iso-border'
@@ -133,7 +133,7 @@ export default function CustomDropdown({
                         {opt.badge}
                       </span>
                     )}
-                    {isSelected && <Check size={12} className="text-iso-accent shrink-0" />}
+                    {isSelected && <Check size={11} className="text-iso-accent shrink-0" />}
                   </div>
                 </button>
               );

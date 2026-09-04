@@ -360,7 +360,7 @@ export default function App() {
       />
 
       {/* Content Viewport */}
-      <main className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto overflow-x-hidden">
+      <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
         <Header 
           selectedTenant={selectedTenant} 
           selectedBot={selectedBot} 
@@ -370,7 +370,7 @@ export default function App() {
           onLogout={() => handleLogout('manual')}
         />
         
-        <div className="flex-1 p-8">
+        <div className="flex-1 p-6 md:p-8 min-h-0 flex flex-col overflow-y-auto">
           {activeRoute ? (
             React.createElement(activeRoute.component, {
               currentUser,

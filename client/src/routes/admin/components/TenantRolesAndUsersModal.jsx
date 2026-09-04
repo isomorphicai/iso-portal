@@ -3,6 +3,7 @@ import {
   X, Shield, Users, Plus, Trash2, Edit3, Save, Loader2, KeyRound
 } from "lucide-react";
 import ConfirmModal from "../../../components/ConfirmModal";
+import TablePagination from "../../../components/TablePagination";
 
 export default function TenantRolesAndUsersModal({
   isOpen,
@@ -17,6 +18,7 @@ export default function TenantRolesAndUsersModal({
   const [tenantUsers, setTenantUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [savingRoles, setSavingRoles] = useState(false);
+  const [userPage, setUserPage] = useState(1);
 
   // User form states
   const [showUserModal, setShowUserModal] = useState(false);
@@ -46,8 +48,14 @@ export default function TenantRolesAndUsersModal({
   useEffect(() => {
     if (isOpen && activeTenant) {
       loadData();
+      setUserPage(1);
     }
   }, [isOpen, activeTenant]);
+
+  const paginatedUsers = React.useMemo(() => {
+    const start = (userPage - 1) * 10;
+    return tenantUsers.slice(start, start + 10);
+  }, [tenantUsers, userPage]);
 
   const loadData = async () => {
     setLoading(true);
@@ -291,7 +299,7 @@ export default function TenantRolesAndUsersModal({
                           </td>
                         </tr>
                       ) : (
-                        tenantUsers.map(u => (
+                        paginatedUsers.map(u => (
                           <tr key={u._id || u.username} className="border-b border-iso-border/40 hover:bg-iso-bgSecondary/20">
                             <td className="py-3 px-3 font-bold text-iso-primary flex items-center gap-2">
                               <KeyRound size={13} className="text-iso-accent" />
@@ -336,6 +344,14 @@ export default function TenantRolesAndUsersModal({
                       )}
                     </tbody>
                   </table>
+
+                  {/* Tenant Users Pagination */}
+                  <TablePagination
+                    currentPage={userPage}
+                    totalItems={tenantUsers.length}
+                    pageSize={10}
+                    onPageChange={setUserPage}
+                  />
                 </div>
               )}
 

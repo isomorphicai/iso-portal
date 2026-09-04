@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import ConfirmModal from '../../components/ConfirmModal';
 import CustomDropdown from '../../components/CustomDropdown';
+import TablePagination from '../../components/TablePagination';
 
 export default function Ingestion({ 
   tenants = [], 
@@ -42,6 +43,7 @@ export default function Ingestion({
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('createdAt');
   const [sortAsc, setSortAsc] = useState(false);
+  const [sourcePage, setSourcePage] = useState(1);
 
   // Inspect Chunks Modal state
   const [selectedSourceForChunks, setSelectedSourceForChunks] = useState(null);
@@ -346,6 +348,16 @@ export default function Ingestion({
     return result;
   }, [sources, searchQuery, sortField, sortAsc]);
 
+  // Reset source page on search, sort, or active bot change
+  useEffect(() => {
+    setSourcePage(1);
+  }, [searchQuery, sortField, sortAsc, activeTenantId, activeBotId]);
+
+  const paginatedSources = useMemo(() => {
+    const start = (sourcePage - 1) * 10;
+    return filteredAndSortedSources.slice(start, start + 10);
+  }, [filteredAndSortedSources, sourcePage]);
+
   const renderSortIcon = (field) => {
     if (sortField !== field) return <ArrowUpDown size={11} className="text-iso-textMuted/40" />;
     return sortAsc ? <ArrowUp size={11} className="text-iso-primary" /> : <ArrowDown size={11} className="text-iso-primary" />;
@@ -576,7 +588,7 @@ export default function Ingestion({
                     </td>
                   </tr>
                 ) : (
-                  filteredAndSortedSources.map(s => {
+                  paginatedSources.map(s => {
                     const isExpired = s.linkExpiry && new Date(s.linkExpiry) < new Date();
                     return (
                       <tr key={s._id} className="border-b border-iso-border/40 hover:bg-iso-bgSecondary/20 transition-colors">
@@ -684,6 +696,14 @@ export default function Ingestion({
                 )}
               </tbody>
             </table>
+
+            {/* Sources Pagination */}
+            <TablePagination
+              currentPage={sourcePage}
+              totalItems={filteredAndSortedSources.length}
+              pageSize={10}
+              onPageChange={setSourcePage}
+            />
           </div>
         </div>
       )}

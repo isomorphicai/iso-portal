@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   History, MessageSquare, Search, Filter, RefreshCw, Trash2,
   Download, Clock, Calendar, Building2, Bot, CheckCircle2,
@@ -174,12 +174,13 @@ export default function ConversationHistory({
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalSessionsCount, setTotalSessionsCount] = useState(0);
-  const PAGE_SIZE = 8;
+  const PAGE_SIZE = 5;
 
   // Messages in active session
   const [sessionMessages, setSessionMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [copiedSessionId, setCopiedSessionId] = useState(false);
+  const messagesContainerRef = useRef(null);
 
   // 1. Fetch tenants list if not passed from props
   useEffect(() => {
@@ -325,6 +326,9 @@ export default function ConversationHistory({
       const json = await res.json();
       if (json.success && json.data) {
         setSessionMessages(json.data.messages || []);
+        if (messagesContainerRef.current) {
+          messagesContainerRef.current.scrollTop = 0;
+        }
       }
     } catch (err) {
       if (showToast) showToast('Error loading session thread messages.', 'error');
@@ -439,7 +443,7 @@ export default function ConversationHistory({
   ];
 
   return (
-    <div className="max-w-7xl mx-auto h-full flex flex-col gap-3.5">
+    <div className="w-full max-w-7xl mx-auto h-full flex flex-col gap-3 min-h-0">
       
       {/* Top Header & Telemetry */}
       <div className="border-b border-iso-border pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
@@ -770,7 +774,7 @@ export default function ConversationHistory({
           {currentActiveSession ? (
             <>
               {/* Thread Header */}
-              <div className="px-4 py-3 border-b border-iso-border bg-iso-bgSecondary/60 flex flex-wrap items-center justify-between gap-3">
+              <div className="px-4 py-2.5 border-b border-iso-border bg-iso-bgSecondary/60 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-iso-primary font-mono select-all">
@@ -815,7 +819,7 @@ export default function ConversationHistory({
               </div>
 
               {/* Messages Stream */}
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs bg-iso-bg/50">
+              <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs bg-iso-bg/50 min-h-0">
                 {loadingMessages ? (
                   <div className="p-10 text-center text-iso-textMuted text-xs flex flex-col items-center justify-center gap-2 h-full">
                     <RefreshCw size={18} className="animate-spin text-iso-accent" />

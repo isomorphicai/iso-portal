@@ -3,7 +3,7 @@ import { RefreshCw, LogOut } from 'lucide-react';
 
 export default function Header({ selectedTenant, selectedBot, selectedPortal, activeRoute, currentUser, onLogout }) {
   return (
-    <header className="h-14 border-b border-iso-border flex items-center justify-between px-8 bg-iso-cardBg sticky top-0 z-40 select-none">
+    <header className="h-14 border-b border-iso-border flex items-center justify-between px-8 bg-iso-cardBg sticky top-0 z-40 select-none shrink-0">
       
       {/* Left: Status Indicators */}
       <div className="flex items-center gap-1.5 text-[10px] font-mono text-iso-textMuted">

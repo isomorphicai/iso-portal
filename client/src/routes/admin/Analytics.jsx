@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { apiUrl } from '../../config/api';
 import CustomDropdown from '../../components/CustomDropdown';
+import TablePagination from '../../components/TablePagination';
 
 export default function Analytics({ 
   currentUser,
@@ -34,6 +35,8 @@ export default function Analytics({
   const [hoveredDataPoint, setHoveredDataPoint] = useState(null);
   const [chartMetric, setChartMetric] = useState('both'); // 'both' | 'questions' | 'sessions'
   const [querySearch, setQuerySearch] = useState('');
+  const [queriesPage, setQueriesPage] = useState(1);
+  const [sessionsPage, setSessionsPage] = useState(1);
 
   // Role-Based Widget Permissions
   const isGlobalAdmin = currentUser?.role === 'global_admin' || currentUser?.role === 'super_admin' || currentUser?.isGlobalAdmin;
@@ -150,6 +153,16 @@ export default function Analytics({
     );
   }, [analytics?.topQueries, querySearch]);
 
+  // Reset queries page on search or data change
+  useEffect(() => {
+    setQueriesPage(1);
+  }, [querySearch, analytics]);
+
+  const paginatedQueries = useMemo(() => {
+    const start = (queriesPage - 1) * 10;
+    return filteredQueries.slice(start, start + 10);
+  }, [filteredQueries, queriesPage]);
+
   const summary = analytics?.summary || {
     totalQuestions: 0,
     totalSessions: 0,
@@ -167,6 +180,16 @@ export default function Analytics({
   const hourlyDistribution = analytics?.hourlyDistribution || [];
   const ratingBreakdown = analytics?.ratingBreakdown || { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
   const recentSessions = analytics?.recentSessions || [];
+
+  // Reset sessions page on data change
+  useEffect(() => {
+    setSessionsPage(1);
+  }, [analytics]);
+
+  const paginatedRecentSessions = useMemo(() => {
+    const start = (sessionsPage - 1) * 10;
+    return recentSessions.slice(start, start + 10);
+  }, [recentSessions, sessionsPage]);
 
   // Daily Chart Calculations (SVG dimensions & path generation)
   const chartWidth = 700;
@@ -904,7 +927,7 @@ export default function Analytics({
                     />
                   </div>
 
-                  <div className="overflow-x-auto max-h-72 overflow-y-auto border border-iso-border rounded-sm">
+                  <div className="overflow-x-auto border border-iso-border rounded-sm">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-iso-bgSecondary border-b border-iso-border text-[10px] font-mono uppercase text-iso-textMuted sticky top-0">
                         <tr>
@@ -922,28 +945,33 @@ export default function Analytics({
                             </td>
                           </tr>
                         ) : (
-                          filteredQueries.map((q, idx) => (
-                            <tr key={idx} className="hover:bg-iso-bgSecondary/40 transition-colors">
-                              <td className="p-2.5 font-mono text-[10px] text-iso-textMuted font-bold">{idx + 1}</td>
-                              <td className="p-2.5 font-medium text-iso-primary">
-                                <div className="truncate max-w-[240px]" title={q.query}>{q.query}</div>
-                                <span className="text-[9px] font-mono text-iso-textMuted bg-iso-bg border border-iso-border px-1 py-0.2 rounded mt-0.5 inline-block">
-                                  {q.intent}
-                                </span>
-                              </td>
-                              <td className="p-2.5 text-center font-mono font-bold text-iso-primary">{q.count}</td>
-                              <td className="p-2.5 text-right font-mono text-[11px] text-iso-textMuted">{q.avgLatencyMs}ms</td>
-                            </tr>
-                          ))
+                          paginatedQueries.map((q, idx) => {
+                            const globalIdx = (queriesPage - 1) * 10 + idx + 1;
+                            return (
+                              <tr key={idx} className="hover:bg-iso-bgSecondary/40 transition-colors">
+                                <td className="p-2.5 font-mono text-[10px] text-iso-textMuted font-bold">{globalIdx}</td>
+                                <td className="p-2.5 font-medium text-iso-primary">
+                                  <div className="truncate max-w-[240px]" title={q.query}>{q.query}</div>
+                                  <span className="text-[9px] font-mono text-iso-textMuted bg-iso-bg border border-iso-border px-1 py-0.2 rounded mt-0.5 inline-block">
+                                    {q.intent}
+                                  </span>
+                                </td>
+                                <td className="p-2.5 text-center font-mono font-bold text-iso-primary">{q.count}</td>
+                                <td className="p-2.5 text-right font-mono text-[11px] text-iso-textMuted">{q.avgLatencyMs}ms</td>
+                              </tr>
+                            );
+                          })
                         )}
                       </tbody>
                     </table>
-                  </div>
-                </div>
 
-                <div className="border-t border-iso-border/50 pt-2.5 mt-3 text-[10px] font-mono text-iso-textMuted flex items-center justify-between">
-                  <span>Showing {filteredQueries.length} top questions</span>
-                  <span>Sorted by frequency</span>
+                    <TablePagination
+                      currentPage={queriesPage}
+                      totalItems={filteredQueries.length}
+                      pageSize={10}
+                      onPageChange={setQueriesPage}
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -964,7 +992,7 @@ export default function Analytics({
                     </div>
                   </div>
 
-                  <div className="overflow-x-auto max-h-72 overflow-y-auto border border-iso-border rounded-sm">
+                  <div className="overflow-x-auto border border-iso-border rounded-sm">
                     <table className="w-full text-left text-xs">
                       <thead className="bg-iso-bgSecondary border-b border-iso-border text-[10px] font-mono uppercase text-iso-textMuted sticky top-0">
                         <tr>
@@ -983,7 +1011,7 @@ export default function Analytics({
                             </td>
                           </tr>
                         ) : (
-                          recentSessions.map((s, idx) => (
+                          paginatedRecentSessions.map((s, idx) => (
                             <tr key={idx} className="hover:bg-iso-bgSecondary/40 transition-colors">
                               <td className="p-2.5 font-mono text-[10px] font-bold text-iso-primary">
                                 <div className="truncate max-w-[140px]" title={s.sessionId}>{s.sessionId}</div>
@@ -1010,12 +1038,14 @@ export default function Analytics({
                         )}
                       </tbody>
                     </table>
-                  </div>
-                </div>
 
-                <div className="border-t border-iso-border/50 pt-2.5 mt-3 text-[10px] font-mono text-iso-textMuted flex items-center justify-between">
-                  <span>Aggregated from master.conversationHistory</span>
-                  <span className="text-iso-accent font-bold">{recentSessions.length} sessions logged</span>
+                    <TablePagination
+                      currentPage={sessionsPage}
+                      totalItems={recentSessions.length}
+                      pageSize={10}
+                      onPageChange={setSessionsPage}
+                    />
+                  </div>
                 </div>
               </div>
             )}

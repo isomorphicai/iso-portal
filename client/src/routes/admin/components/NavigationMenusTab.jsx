@@ -5,6 +5,7 @@ import {
   Search, ArrowUpDown, ArrowUp, ArrowDown
 } from "lucide-react";
 import ConfirmModal from "../../../components/ConfirmModal";
+import TablePagination from "../../../components/TablePagination";
 
 export default function NavigationMenusTab({ showToast }) {
   const [menus, setMenus] = useState([]);
@@ -14,6 +15,7 @@ export default function NavigationMenusTab({ showToast }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortField, setSortField] = useState("sortOrder");
   const [sortAsc, setSortAsc] = useState(true);
+  const [menusPage, setMenusPage] = useState(1);
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
@@ -102,6 +104,16 @@ export default function NavigationMenusTab({ showToast }) {
 
     return result;
   }, [menus, searchQuery, sortField, sortAsc]);
+
+  // Reset page on search or sort change
+  useEffect(() => {
+    setMenusPage(1);
+  }, [searchQuery, sortField, sortAsc]);
+
+  const paginatedMenus = useMemo(() => {
+    const start = (menusPage - 1) * 10;
+    return filteredAndSortedMenus.slice(start, start + 10);
+  }, [filteredAndSortedMenus, menusPage]);
 
   const handleOpenCreate = () => {
     setEditingMenu(null);
@@ -347,7 +359,7 @@ export default function NavigationMenusTab({ showToast }) {
                 </td>
               </tr>
             ) : (
-              filteredAndSortedMenus.map(m => (
+              paginatedMenus.map(m => (
                 <tr key={m._id || m.menuId} className="border-b border-iso-border/40 hover:bg-iso-bgSecondary/20 transition-colors">
                   <td className="py-3 px-3 font-mono font-bold text-iso-textMuted">#{m.sortOrder}</td>
                   <td className="py-3 font-bold text-iso-primary flex items-center gap-2">
@@ -399,6 +411,14 @@ export default function NavigationMenusTab({ showToast }) {
             )}
           </tbody>
         </table>
+
+        {/* Menus Table Pagination */}
+        <TablePagination
+          currentPage={menusPage}
+          totalItems={filteredAndSortedMenus.length}
+          pageSize={10}
+          onPageChange={setMenusPage}
+        />
       </div>
 
       {/* CREATE / EDIT MENU MODAL */}
