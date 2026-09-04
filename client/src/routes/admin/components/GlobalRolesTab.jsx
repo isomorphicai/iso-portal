@@ -1,9 +1,29 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { 
   Shield, Plus, Trash2, Edit3, Check, X, Loader2, Save,
-  Search, ArrowUpDown, ArrowUp, ArrowDown
+  Search, ArrowUpDown, ArrowUp, ArrowDown, Sliders, LayoutGrid, Menu
 } from "lucide-react";
 import ConfirmModal from "../../../components/ConfirmModal";
+import { apiUrl } from "../../../config/api";
+
+const ALL_AVAILABLE_WIDGETS = [
+  { id: 'total_questions', title: 'Total Questions', category: 'KPI Card', description: 'Total volume of user queries processed' },
+  { id: 'total_sessions', title: 'Total Sessions', category: 'KPI Card', description: 'Unique conversation sessions initiated' },
+  { id: 'avg_questions_day', title: 'Avg. Questions / Day', category: 'KPI Card', description: 'Daily question processing rate' },
+  { id: 'avg_questions_session', title: 'Avg. Questions / Session', category: 'KPI Card', description: 'Average turns per conversation' },
+  { id: 'avg_session_length', title: 'Avg. Session Length', category: 'KPI Card', description: 'Mean duration of chat sessions' },
+  { id: 'csat_score', title: 'CSAT (Satisfaction)', category: 'KPI Card', description: 'Customer satisfaction score (4-5 stars)' },
+  { id: 'thumbs_up_score', title: 'Thumbs Up Ratio', category: 'KPI Card', description: 'Positive feedback ratio from ratings' },
+  { id: 'avg_latency', title: 'Avg. Response Latency', category: 'KPI Card', description: 'Model retrieval and response latency in ms' },
+  { id: 'token_usage', title: 'Token Consumption', category: 'KPI Card', description: 'LLM prompt and completion tokens' },
+  { id: 'daily_trend_chart', title: 'Daily Trend Graph', category: 'Graph / Chart', description: 'Interactive area/line trend chart' },
+  { id: 'top_intents_chart', title: 'Top Intents Breakdown', category: 'Graph / Chart', description: 'Ranked query intent distribution bars' },
+  { id: 'sentiment_donut_chart', title: 'Sentiment Donut Chart', category: 'Graph / Chart', description: 'Circular sentiment and rating breakdown' },
+  { id: 'hourly_heatmap_chart', title: '24-Hour Peak Activity', category: 'Graph / Chart', description: 'Hourly inquiry load histogram' },
+  { id: 'csat_breakdown_chart', title: 'Star Rating Distribution', category: 'Graph / Chart', description: '1-star to 5-star breakdown' },
+  { id: 'top_queries_table', title: 'Top Inquiries Table', category: 'Data Table', description: 'Searchable top asked questions table' },
+  { id: 'recent_sessions_table', title: 'Recent Sessions Table', category: 'Data Table', description: 'Live session durations and status log' }
+];
 
 export default function GlobalRolesTab({ showToast }) {
   const [roles, setRoles] = useState([]);
@@ -17,12 +37,14 @@ export default function GlobalRolesTab({ showToast }) {
 
   // Modal states
   const [showModal, setShowModal] = useState(false);
+  const [modalTab, setModalTab] = useState("menus"); // "menus" | "widgets"
   const [editingRole, setEditingRole] = useState(null);
   const [formData, setFormData] = useState({
     roleId: "",
     roleName: "",
     description: "",
     allowedMenus: [],
+    allowedWidgets: ALL_AVAILABLE_WIDGETS.map(w => w.id),
     isSystemRole: false
   });
   const [saving, setSaving] = useState(false);
@@ -43,8 +65,8 @@ export default function GlobalRolesTab({ showToast }) {
     setLoading(true);
     try {
       const [rolesRes, menusRes] = await Promise.all([
-        fetch("/api/admin/roles"),
-        fetch("/api/admin/menus")
+        fetch(apiUrl("/api/admin/roles")),
+        fetch(apiUrl("/api/admin/menus"))
       ]);
       const rolesData = await rolesRes.json();
       const menusData = await menusRes.json();
@@ -102,11 +124,13 @@ export default function GlobalRolesTab({ showToast }) {
 
   const handleOpenCreate = () => {
     setEditingRole(null);
+    setModalTab("menus");
     setFormData({
       roleId: "",
       roleName: "",
       description: "",
       allowedMenus: menus.map(m => m.menuId),
+      allowedWidgets: ALL_AVAILABLE_WIDGETS.map(w => w.id),
       isSystemRole: false
     });
     setShowModal(true);
@@ -114,11 +138,15 @@ export default function GlobalRolesTab({ showToast }) {
 
   const handleOpenEdit = (r) => {
     setEditingRole(r);
+    setModalTab("menus");
     setFormData({
       roleId: r.roleId,
       roleName: r.roleName,
       description: r.description || "",
       allowedMenus: Array.isArray(r.allowedMenus) ? [...r.allowedMenus] : [],
+      allowedWidgets: Array.isArray(r.allowedWidgets) && r.allowedWidgets.length > 0 
+        ? [...r.allowedWidgets] 
+        : ALL_AVAILABLE_WIDGETS.map(w => w.id),
       isSystemRole: Boolean(r.isSystemRole)
     });
     setShowModal(true);
@@ -134,24 +162,21 @@ export default function GlobalRolesTab({ showToast }) {
     });
   };
 
-  const handleToggleTablePermission = async (role, menuId, isChecked) => {
-    const updatedMenus = isChecked
-      ? [...(role.allowedMenus || []), menuId]
-      : (role.allowedMenus || []).filter(m => m !== menuId);
+  const handleToggleWidgetInModal = (widgetId) => {
+    setFormData(prev => {
+      const current = prev.allowedWidgets || [];
+      const updated = current.includes(widgetId)
+        ? current.filter(w => w !== widgetId)
+        : [...current, widgetId];
+      return { ...prev, allowedWidgets: updated };
+    });
+  };
 
-    try {
-      const res = await fetch(`/api/admin/roles/${role._id || role.roleId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ allowedMenus: updatedMenus })
-      });
-      if (res.ok) {
-        showToast(`Permissions updated for "${role.roleName}".`);
-        fetchData();
-      }
-    } catch (err) {
-      showToast("Error updating role permissions.", "error");
-    }
+  const handleSelectAllWidgets = (select) => {
+    setFormData(prev => ({
+      ...prev,
+      allowedWidgets: select ? ALL_AVAILABLE_WIDGETS.map(w => w.id) : []
+    }));
   };
 
   const handleSave = async (e) => {
@@ -164,7 +189,7 @@ export default function GlobalRolesTab({ showToast }) {
     setSaving(true);
     try {
       const method = editingRole ? "PUT" : "POST";
-      const url = editingRole ? `/api/admin/roles/${editingRole._id || editingRole.roleId}` : "/api/admin/roles";
+      const url = editingRole ? apiUrl(`/api/admin/roles/${editingRole._id || editingRole.roleId}`) : apiUrl("/api/admin/roles");
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
@@ -172,7 +197,7 @@ export default function GlobalRolesTab({ showToast }) {
       });
       const data = await res.json();
       if (res.ok) {
-        showToast(editingRole ? "Role updated successfully." : `Role "${data.roleName}" created.`);
+        showToast(editingRole ? "Role and Widget permissions updated successfully." : `Role "${data.roleName}" created.`);
         setShowModal(false);
         fetchData();
       } else {
@@ -204,7 +229,7 @@ export default function GlobalRolesTab({ showToast }) {
   const performDelete = async (id) => {
     setConfirmModal(prev => ({ ...prev, isLoading: true }));
     try {
-      const res = await fetch(`/api/admin/roles/${id}`, { method: "DELETE" });
+      const res = await fetch(apiUrl(`/api/admin/roles/${id}`), { method: "DELETE" });
       if (res.ok) {
         showToast("Role deleted successfully.");
         setConfirmModal(prev => ({ ...prev, isOpen: false, isLoading: false }));
@@ -230,8 +255,10 @@ export default function GlobalRolesTab({ showToast }) {
       {/* Header */}
       <div className="border-b border-iso-border pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-serif text-iso-primary font-bold">Global Roles Management</h2>
-          <p className="text-xs text-iso-textMuted">Centralized collection in <span className="font-mono font-bold text-iso-accent">master &gt; roles</span> mapping sidebar menu access permissions.</p>
+          <h2 className="text-2xl font-serif text-iso-primary font-bold">Global Roles &amp; Widget Permissions</h2>
+          <p className="text-xs text-iso-textMuted">
+            Configure sidebar menu access and <span className="font-bold text-iso-accent">Bot Analytics widget visibility permissions</span> per role in <span className="font-mono font-bold text-iso-accent">master &gt; roles</span>.
+          </p>
         </div>
         <button
           type="button"
@@ -292,26 +319,18 @@ export default function GlobalRolesTab({ showToast }) {
                 className="py-2.5 cursor-pointer hover:text-iso-primary transition-colors select-none"
               >
                 <div className="flex items-center gap-1">
-                  <span>Role Slug (ID)</span>
+                  <span>Role Slug</span>
                   {renderSortIcon("roleId")}
                 </div>
               </th>
 
-              <th 
-                onClick={() => handleSort("description")}
-                className="py-2.5 cursor-pointer hover:text-iso-primary transition-colors select-none"
-              >
-                <div className="flex items-center gap-1">
-                  <span>Description</span>
-                  {renderSortIcon("description")}
-                </div>
+              <th className="py-2.5 px-3">
+                <span>Allowed Menus</span>
               </th>
 
-              {menus.map(m => (
-                <th key={m.menuId} className="py-2.5 text-center font-semibold text-[9px]">
-                  {m.label}
-                </th>
-              ))}
+              <th className="py-2.5 px-3">
+                <span>Analytics Widgets Access</span>
+              </th>
 
               <th className="py-2.5 text-right px-3">Actions</th>
             </tr>
@@ -319,7 +338,7 @@ export default function GlobalRolesTab({ showToast }) {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={menus.length + 4} className="py-12 text-center text-iso-textMuted">
+                <td colSpan={5} className="py-12 text-center text-iso-textMuted">
                   <div className="flex items-center justify-center gap-2">
                     <Loader2 size={16} className="animate-spin text-iso-accent" />
                     <span>Loading master roles...</span>
@@ -328,69 +347,82 @@ export default function GlobalRolesTab({ showToast }) {
               </tr>
             ) : filteredAndSortedRoles.length === 0 ? (
               <tr>
-                <td colSpan={menus.length + 4} className="py-8 text-center text-iso-textMuted italic bg-iso-bgSecondary/10 rounded-sm">
+                <td colSpan={5} className="py-8 text-center text-iso-textMuted italic bg-iso-bgSecondary/10 rounded-sm">
                   {searchQuery ? "No roles match your search query." : "No roles configured in master > roles."}
                 </td>
               </tr>
             ) : (
-              filteredAndSortedRoles.map(r => (
-                <tr key={r._id || r.roleId} className="border-b border-iso-border/40 hover:bg-iso-bgSecondary/20 transition-colors">
-                  <td className="py-3 px-3 font-bold text-iso-primary flex items-center gap-2">
-                    <Shield size={14} className="text-iso-accent" />
-                    <div>
-                      <span>{r.roleName}</span>
-                      {r.isSystemRole && (
-                        <span className="ml-2 px-1.5 py-0.2 bg-blue-50 text-blue-700 border border-blue-200 text-[8px] font-mono rounded">
-                          SYSTEM
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  
-                  <td className="py-3 font-mono text-xs text-iso-textMuted">{r.roleId}</td>
-                  
-                  <td className="py-3 text-iso-textMuted text-[11px] max-w-xs truncate">
-                    {r.description || "-"}
-                  </td>
-                  
-                  {menus.map(m => {
-                    const isAllowed = (r.allowedMenus || []).includes(m.menuId);
-                    return (
-                      <td key={m.menuId} className="py-3 text-center">
-                        <input
-                          type="checkbox"
-                          checked={isAllowed}
-                          onChange={(e) => handleToggleTablePermission(r, m.menuId, e.target.checked)}
-                          className="w-3.5 h-3.5 accent-iso-primary cursor-pointer rounded"
-                        />
-                      </td>
-                    );
-                  })}
+              filteredAndSortedRoles.map(r => {
+                const widgetsCount = Array.isArray(r.allowedWidgets) && r.allowedWidgets.length > 0 
+                  ? r.allowedWidgets.length 
+                  : (r.isSystemRole || r.roleId === 'super_admin' ? ALL_AVAILABLE_WIDGETS.length : ALL_AVAILABLE_WIDGETS.length);
 
-                  <td className="py-3 text-right px-3">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(r)}
-                        className="p-1.5 text-iso-textMuted hover:text-iso-primary rounded hover:bg-iso-bgSecondary transition-colors"
-                        title="Edit Role"
-                      >
-                        <Edit3 size={13} />
-                      </button>
-                      {!r.isSystemRole && (
+                return (
+                  <tr key={r._id || r.roleId} className="border-b border-iso-border/40 hover:bg-iso-bgSecondary/20 transition-colors">
+                    <td className="py-3 px-3 font-bold text-iso-primary flex items-center gap-2">
+                      <Shield size={14} className="text-iso-accent" />
+                      <div>
+                        <span>{r.roleName}</span>
+                        {r.isSystemRole && (
+                          <span className="ml-2 px-1.5 py-0.2 bg-blue-50 text-blue-700 border border-blue-200 text-[8px] font-mono rounded">
+                            SYSTEM
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    
+                    <td className="py-3 font-mono text-xs text-iso-textMuted">{r.roleId}</td>
+                    
+                    <td className="py-3 px-3">
+                      <div className="flex flex-wrap gap-1 max-w-xs">
+                        {(r.allowedMenus || []).map(m => (
+                          <span key={m} className="px-1.5 py-0.2 bg-iso-bgSecondary border border-iso-border text-[9px] font-mono text-iso-primary rounded">
+                            {m}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+
+                    <td className="py-3 px-3">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-mono font-bold">
+                          {widgetsCount} of {ALL_AVAILABLE_WIDGETS.length} Widgets
+                        </span>
                         <button
                           type="button"
-                          onClick={() => handleDeleteClick(r)}
-                          className="p-1.5 text-iso-textMuted hover:text-iso-error rounded hover:bg-iso-errorBg transition-colors"
-                          title="Delete Role"
+                          onClick={() => { handleOpenEdit(r); setModalTab("widgets"); }}
+                          className="text-[10px] font-mono text-iso-accent hover:underline cursor-pointer"
                         >
-                          <Trash2 size={13} />
+                          Configure
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
+                      </div>
+                    </td>
+
+                    <td className="py-3 text-right px-3">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(r)}
+                          className="p-1.5 text-iso-textMuted hover:text-iso-primary rounded hover:bg-iso-bgSecondary transition-colors"
+                          title="Edit Role & Widget Permissions"
+                        >
+                          <Edit3 size={13} />
+                        </button>
+                        {!r.isSystemRole && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteClick(r)}
+                            className="p-1.5 text-iso-textMuted hover:text-iso-error rounded hover:bg-iso-errorBg transition-colors"
+                            title="Delete Role"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -399,7 +431,9 @@ export default function GlobalRolesTab({ showToast }) {
       {/* CREATE / EDIT ROLE MODAL */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-iso-cardBg border border-iso-border rounded-md shadow-2xl w-full max-w-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-iso-cardBg border border-iso-border rounded-md shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            
+            {/* Modal Header */}
             <div className="px-6 py-4 border-b border-iso-border flex items-center justify-between bg-iso-bgSecondary/30">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-sm bg-iso-primary/10 border border-iso-primary/20 flex items-center justify-center text-iso-primary">
@@ -407,7 +441,7 @@ export default function GlobalRolesTab({ showToast }) {
                 </div>
                 <div>
                   <h3 className="text-sm font-serif font-bold text-iso-primary">
-                    {editingRole ? `Edit Role: ${editingRole.roleName}` : "Create Global Role"}
+                    {editingRole ? `Edit Role & Permissions: ${editingRole.roleName}` : "Create Global Role"}
                   </h3>
                   <p className="text-[11px] text-iso-textMuted font-mono">master &gt; roles collection</p>
                 </div>
@@ -417,7 +451,30 @@ export default function GlobalRolesTab({ showToast }) {
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="p-6 flex flex-col gap-4 text-xs">
+            {/* Modal Tabs */}
+            <div className="px-6 border-b border-iso-border flex gap-1 bg-iso-bg text-xs">
+              <button
+                type="button"
+                onClick={() => setModalTab("menus")}
+                className={`px-3.5 py-2.5 font-medium border-b-2 transition-all flex items-center gap-1.5 ${
+                  modalTab === "menus" ? "border-iso-primary text-iso-primary font-bold" : "border-transparent text-iso-textMuted hover:text-iso-text"
+                }`}
+              >
+                <Menu size={13} /> Allowed Navigation Menus ({formData.allowedMenus?.length || 0})
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalTab("widgets")}
+                className={`px-3.5 py-2.5 font-medium border-b-2 transition-all flex items-center gap-1.5 ${
+                  modalTab === "widgets" ? "border-iso-primary text-iso-primary font-bold" : "border-transparent text-iso-textMuted hover:text-iso-text"
+                }`}
+              >
+                <LayoutGrid size={13} /> Allowed Analytics Widgets ({formData.allowedWidgets?.length || 0})
+              </button>
+            </div>
+
+            <form onSubmit={handleSave} className="p-6 flex flex-col gap-4 text-xs overflow-y-auto max-h-[calc(90vh-160px)] flex-1">
+              
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1 font-semibold">Role Name <span className="text-iso-error">*</span></label>
@@ -455,34 +512,92 @@ export default function GlobalRolesTab({ showToast }) {
                 />
               </div>
 
-              <div>
-                <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">Allowed Sidebar Menus</label>
-                <div className="p-3 bg-iso-bg border border-iso-border rounded-sm flex flex-col gap-2">
-                  {menus.map(m => {
-                    const isChecked = (formData.allowedMenus || []).includes(m.menuId);
-                    return (
-                      <label key={m.menuId} className="flex items-center justify-between p-2 bg-iso-cardBg border border-iso-border rounded cursor-pointer hover:bg-iso-bgSecondary/30">
-                        <div>
-                          <span className="font-bold text-iso-primary">{m.label}</span>
-                          <span className="ml-2 text-[10px] font-mono text-iso-accent">({m.menuId})</span>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={() => handleToggleMenuInModal(m.menuId)}
-                          className="w-4 h-4 accent-iso-primary cursor-pointer"
-                        />
-                      </label>
-                    );
-                  })}
+              {/* TAB 1: ALLOWED MENUS */}
+              {modalTab === "menus" && (
+                <div>
+                  <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">
+                    Allowed Navigation Sidebar Menus
+                  </label>
+                  <div className="p-3 bg-iso-bg border border-iso-border rounded-sm flex flex-col gap-2">
+                    {menus.map(m => {
+                      const isChecked = (formData.allowedMenus || []).includes(m.menuId);
+                      return (
+                        <label key={m.menuId} className="flex items-center justify-between p-2.5 bg-iso-cardBg border border-iso-border rounded cursor-pointer hover:bg-iso-bgSecondary/30">
+                          <div>
+                            <span className="font-bold text-iso-primary">{m.label}</span>
+                            <span className="ml-2 text-[10px] font-mono text-iso-accent">({m.menuId})</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleMenuInModal(m.menuId)}
+                            className="w-4 h-4 accent-iso-primary cursor-pointer"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-iso-border mt-2">
+              {/* TAB 2: ALLOWED ANALYTICS WIDGETS */}
+              {modalTab === "widgets" && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted font-semibold">
+                      Allowed Bot Analytics Dashboard Widgets
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleSelectAllWidgets(true)}
+                        className="text-[10px] font-mono text-iso-accent hover:underline cursor-pointer"
+                      >
+                        Select All
+                      </button>
+                      <span className="text-iso-border">|</span>
+                      <button
+                        type="button"
+                        onClick={() => handleSelectAllWidgets(false)}
+                        className="text-[10px] font-mono text-iso-textMuted hover:text-iso-primary cursor-pointer"
+                      >
+                        Deselect All
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-iso-bg border border-iso-border rounded-sm flex flex-col gap-2 max-h-64 overflow-y-auto">
+                    {ALL_AVAILABLE_WIDGETS.map(w => {
+                      const isChecked = (formData.allowedWidgets || []).includes(w.id);
+                      return (
+                        <label key={w.id} className="flex items-center justify-between p-2.5 bg-iso-cardBg border border-iso-border rounded cursor-pointer hover:bg-iso-bgSecondary/30">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-iso-primary text-xs">{w.title}</span>
+                              <span className="text-[9px] font-mono uppercase px-1.5 py-0.2 bg-iso-bg border border-iso-border rounded text-iso-textMuted">
+                                {w.category}
+                              </span>
+                            </div>
+                            <p className="text-[10px] font-mono text-iso-textMuted mt-0.5">{w.description}</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleWidgetInModal(w.id)}
+                            className="w-4 h-4 accent-iso-primary cursor-pointer"
+                          />
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-iso-border mt-auto">
                 <button type="button" onClick={() => setShowModal(false)} className="px-4 py-1.5 bg-iso-bgSecondary border border-iso-border rounded-sm text-xs font-semibold">Cancel</button>
                 <button type="submit" disabled={saving} className="px-5 py-1.5 bg-iso-primary hover:bg-iso-primaryLight text-white rounded-sm text-xs font-bold border border-iso-primary flex items-center gap-1.5 shadow-sm">
                   {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
-                  <span>{saving ? "Saving..." : (editingRole ? "Save Changes" : "Create Role")}</span>
+                  <span>{saving ? "Saving..." : (editingRole ? "Save Role Permissions" : "Create Role")}</span>
                 </button>
               </div>
             </form>

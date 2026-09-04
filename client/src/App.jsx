@@ -367,6 +367,7 @@ export default function App() {
         <div className="flex-1 p-8">
           {activeRoute ? (
             React.createElement(activeRoute.component, {
+              currentUser,
               selectedTenant,
               setSelectedTenant,
               selectedBot,
