@@ -964,9 +964,62 @@ export default function Overview({ selectedTenant, selectedBot, setSelectedBot, 
               {/* Custom Forms Schema */}
               <div className="flex flex-col gap-2 border-t border-iso-border pt-4">
                 <span className="text-[10px] font-mono font-bold text-iso-accent uppercase tracking-wider">
-                  Integrated Custom Forms
+                  Integrated Custom Forms & Session End Form
                 </span>
                 <p className="text-[11px] text-iso-textMuted">Forms triggered by specific intents (e.g., Live Agent Escalation or Post-Chat Survey).</p>
+
+                {/* Session End Form Styling */}
+                <div className="p-3 bg-iso-bg border border-iso-border rounded-sm flex flex-col gap-3">
+                  <span className="text-xs font-bold text-iso-primary">Session End / Feedback Form Button</span>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[9px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1">Submit Button Text</label>
+                      <input 
+                        type="text" 
+                        value={ui.surveySubmitButtonText || ''} 
+                        onChange={(e) => updateUIConfig('surveySubmitButtonText', e.target.value)} 
+                        placeholder="e.g. Submit Feedback" 
+                        className="w-full bg-iso-cardBg border border-iso-border rounded px-2.5 py-1.5 text-xs text-iso-text outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1">Button Background Color</label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="color" 
+                          value={ui.surveySubmitButtonColor || ui.botThemeColor || '#00306D'} 
+                          onChange={(e) => updateUIConfig('surveySubmitButtonColor', e.target.value)} 
+                          className="w-7 h-7 rounded border border-iso-border cursor-pointer p-0 bg-transparent shrink-0"
+                        />
+                        <input 
+                          type="text" 
+                          value={ui.surveySubmitButtonColor || ''} 
+                          onChange={(e) => updateUIConfig('surveySubmitButtonColor', e.target.value)} 
+                          placeholder="#00306D" 
+                          className="w-full bg-iso-cardBg border border-iso-border rounded px-2 py-1 text-xs font-mono text-iso-text outline-none"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[9px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1">Button Text Color</label>
+                      <div className="flex items-center gap-2">
+                        <input 
+                          type="color" 
+                          value={ui.surveySubmitButtonTextColor || '#FFFFFF'} 
+                          onChange={(e) => updateUIConfig('surveySubmitButtonTextColor', e.target.value)} 
+                          className="w-7 h-7 rounded border border-iso-border cursor-pointer p-0 bg-transparent shrink-0"
+                        />
+                        <input 
+                          type="text" 
+                          value={ui.surveySubmitButtonTextColor || ''} 
+                          onChange={(e) => updateUIConfig('surveySubmitButtonTextColor', e.target.value)} 
+                          placeholder="#FFFFFF" 
+                          className="w-full bg-iso-cardBg border border-iso-border rounded px-2 py-1 text-xs font-mono text-iso-text outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="flex flex-col gap-3 mt-1">
                   {botForm.customForms.length === 0 ? (

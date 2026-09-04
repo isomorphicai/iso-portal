@@ -7,7 +7,7 @@ export default function SystemSettings({ showToast }) {
   const [activeTab, setActiveTab] = useState("roles"); // "roles" | "menus"
 
   return (
-    <div className="max-w-6xl mx-auto flex flex-col gap-6">
+    <div className="w-full flex flex-col gap-6">
       {/* HEADER */}
       <div className="border-b border-iso-border pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>

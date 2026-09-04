@@ -355,7 +355,7 @@ export default function TenantsList({
   };
 
   return (
-    <div className="max-w-6xl mx-auto flex flex-col gap-6">
+    <div className="w-full flex flex-col gap-6">
       
       {/* TENANTS & WORKSPACES */}
       {subView === "list" && (

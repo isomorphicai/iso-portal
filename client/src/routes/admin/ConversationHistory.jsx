@@ -443,7 +443,7 @@ export default function ConversationHistory({
   ];
 
   return (
-    <div className="w-full max-w-7xl mx-auto h-full flex flex-col gap-3 min-h-0">
+    <div className="w-full h-full flex flex-col gap-3 min-h-0">
       
       {/* Top Header & Telemetry */}
       <div className="border-b border-iso-border pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">

@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Send, Loader2, Info, Sparkles, ExternalLink, Bot, Building2,
-  RefreshCw, MessageSquare, ShieldCheck
+  Send, Loader2, Sparkles, ExternalLink, Bot, Building2,
+  RefreshCw, MessageSquare, User, Copy, Check, Volume2, Mic, Download, Search, X
 } from 'lucide-react';
 import CustomDropdown from '../../components/CustomDropdown';
-
-
 
 function escapeHTML(str) {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -52,7 +50,7 @@ function renderFormattedMarkdown(text) {
   const codeBlocks = [];
   str = str.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (match, lang, codeContent) => {
     const idx = codeBlocks.length;
-    codeBlocks.push(`<pre class="bg-slate-900 text-slate-100 text-[11px] p-3 rounded my-2 overflow-x-auto font-mono"><code class="language-${lang}">${escapeHTML(codeContent.trim())}</code></pre>`);
+    codeBlocks.push(`<div class="my-2 rounded border border-slate-700 bg-slate-900 overflow-hidden"><div class="bg-slate-800 px-3 py-1 text-[10px] font-mono text-slate-400"><span>${lang || 'code'}</span></div><pre class="text-slate-100 text-[11px] p-2.5 overflow-x-auto font-mono"><code class="language-${lang}">${escapeHTML(codeContent.trim())}</code></pre></div>`);
     return `%%CODEBLOCK_${idx}%%`;
   });
 
@@ -60,17 +58,15 @@ function renderFormattedMarkdown(text) {
   const inlineCodes = [];
   str = str.replace(/`([^`]+)`/g, (match, codeContent) => {
     const idx = inlineCodes.length;
-    inlineCodes.push(`<code class="bg-slate-100 text-iso-primary px-1.5 py-0.5 rounded text-[11px] font-mono border border-slate-200">${escapeHTML(codeContent)}</code>`);
+    inlineCodes.push(`<code class="bg-slate-100 text-slate-800 px-1 py-0.5 rounded text-[11px] font-mono border border-slate-200">${escapeHTML(codeContent)}</code>`);
     return `%%INLINECODE_${idx}%%`;
   });
 
   function parseInline(txt) {
     let t = txt;
-    t = t.replace(/\*\*([^*]+)\*\*/g, "<strong class='font-bold text-iso-primary'>$1</strong>");
-    t = t.replace(/__([^_]+)__/g, "<strong class='font-bold text-iso-primary'>$1</strong>");
+    t = t.replace(/\*\*([^*]+)\*\*/g, "<strong class='font-semibold text-slate-900'>$1</strong>");
     t = t.replace(/\*([^*]+)\*/g, "<em class='italic'>$1</em>");
-    t = t.replace(/_([^_]+)_/g, "<em class='italic'>$1</em>");
-    t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-iso-accent underline font-medium hover:text-iso-primary">$1</a>');
+    t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-sky-600 underline font-medium hover:text-sky-800">$1</a>');
     return t;
   }
 
@@ -86,53 +82,44 @@ function renderFormattedMarkdown(text) {
       const cells = line.split("|").map(c => c.trim()).slice(1, -1);
       const tag = isHeader ? "th" : "td";
       const cls = isHeader 
-        ? "bg-iso-primary text-white font-semibold px-3 py-2 text-left border-b-2 border-iso-accent text-xs whitespace-nowrap"
-        : "px-3 py-2 border-b border-iso-border/70 text-xs leading-relaxed text-iso-text align-top";
+        ? "bg-slate-100 text-slate-900 font-semibold px-2.5 py-1.5 text-left border border-slate-300 text-xs"
+        : "px-2.5 py-1.5 border border-slate-200 text-xs leading-relaxed text-slate-700 align-top";
       return "<tr>" + cells.map(c => `<${tag} class="${cls}">${parseInline(c)}</${tag}>`).join("") + "</tr>";
     };
 
     const thead = "<thead>" + parseRow(headerLine, true) + "</thead>";
     const tbody = "<tbody>" + bodyLines.map((l) => parseRow(l, false)).join("") + "</tbody>";
 
-    return `\n<div class="my-3 overflow-x-auto rounded border border-iso-border shadow-xs"><table class="min-w-full divide-y divide-iso-border bg-white text-xs">${thead}${tbody}</table></div>\n`;
+    return `\n<div class="my-2 overflow-x-auto rounded border border-slate-200"><table class="min-w-full divide-y divide-slate-200 bg-white text-xs">${thead}${tbody}</table></div>\n`;
   });
 
-  // 4. Headings
-  str = str.replace(/^### (.*$)/gim, '<h4 class="text-xs font-bold text-iso-primary mt-3 mb-1.5">$1</h4>');
-  str = str.replace(/^## (.*$)/gim, '<h3 class="text-sm font-bold text-iso-primary mt-4 mb-2 pb-1 border-b border-iso-border/50">$1</h3>');
-  str = str.replace(/^# (.*$)/gim, '<h2 class="text-base font-bold text-iso-primary mt-5 mb-2.5 pb-1 border-b border-iso-border">$1</h2>');
+  // 4. Headings & Lists
+  str = str.replace(/^### (.*$)/gim, '<h4 class="text-xs font-bold text-slate-900 mt-2.5 mb-1">$1</h4>');
+  str = str.replace(/^## (.*$)/gim, '<h3 class="text-sm font-bold text-slate-900 mt-3 mb-1.5 pb-0.5 border-b border-slate-200">$1</h3>');
+  str = str.replace(/^# (.*$)/gim, '<h2 class="text-sm font-bold text-slate-900 mt-3.5 mb-1.5 pb-0.5 border-b border-slate-300">$1</h2>');
 
-  // 5. Horizontal rules
-  str = str.replace(/^(?:---|___|\*\*\*)\s*$/gim, '<hr class="border-none border-t border-iso-border my-3.5" />');
-
-  // 6. Bullet lists
   str = str.replace(/(?:^|\n)(?:[*\-•]\s+[^\n]+(?:\n[*\-•]\s+[^\n]+)*)/g, (listBlock) => {
     const items = listBlock.trim().split("\n").map(l => l.replace(/^[*\-•]\s+/, "").trim());
-    return "\n<ul class=\"list-disc list-inside my-2 space-y-1 text-xs leading-relaxed pl-1\">" + items.map(it => `<li>${parseInline(it)}</li>`).join("") + "</ul>\n";
+    return "\n<ul class=\"list-disc list-inside my-1.5 space-y-0.5 text-xs text-slate-700 pl-1\">" + items.map(it => `<li>${parseInline(it)}</li>`).join("") + "</ul>\n";
   });
 
-  // 7. Numbered lists
-  str = str.replace(/(?:^|\n)(?:\d+\.\s+[^\n]+(?:\n\d+\.\s+[^\n]+)*)/g, (listBlock) => {
-    const items = listBlock.trim().split("\n").map(l => l.replace(/^\d+\.\s+/, "").trim());
-    return "\n<ol class=\"list-decimal list-inside my-2 space-y-1 text-xs leading-relaxed pl-1\">" + items.map(it => `<li>${parseInline(it)}</li>`).join("") + "</ol>\n";
-  });
-
-  // 8. General inline formatting
   str = parseInline(str);
-
-  // 9. Convert remaining line breaks into <br/>
   str = str.replace(/\n\n+/g, "<br/><br/>").replace(/\n/g, "<br/>");
-  str = str.replace(/<br\/><br\/>(<div|<ul|<ol|<h2|<h3|<h4|<hr)/gi, "$1");
-  str = str.replace(/(<\/div>|<\/ul>|<\/ol>|<\/h2>|<\/h3>|<\/h4>|<hr \/>)<br\/><br\/>/gi, "$1");
-  str = str.replace(/<br\/>(<div|<ul|<ol|<h2|<h3|<h4|<hr)/gi, "$1");
-  str = str.replace(/(<\/div>|<\/ul>|<\/ol>|<\/h2>|<\/h3>|<\/h4>|<hr \/>)<br\/>/gi, "$1");
+  str = str.replace(/<br\/><br\/>(<div|<ul|<h2|<h3|<h4)/gi, "$1");
+  str = str.replace(/(<\/div>|<\/ul>|<\/h2>|<\/h3>|<\/h4>)<br\/><br\/>/gi, "$1");
 
-  // 10. Restore code blocks & inline codes
   str = str.replace(/%%CODEBLOCK_(\d+)%%/g, (m, idx) => codeBlocks[parseInt(idx)] || "");
   str = str.replace(/%%INLINECODE_(\d+)%%/g, (m, idx) => inlineCodes[parseInt(idx)] || "");
 
   return str.trim();
 }
+
+const STARTER_PROMPTS = [
+  { title: "Academic Programs", query: "What academic majors, degrees, and programs are offered?" },
+  { title: "Financial Aid", query: "How do I apply for financial aid, FAFSA, and scholarships?" },
+  { title: "Campus Tech & Wi-Fi", query: "How do I connect to campus Wi-Fi and reset my portal password?" },
+  { title: "Contact Support", query: "Connect me with a live academic advisor or support specialist." }
+];
 
 export default function ChatPlayground({ 
   tenants = [], 
@@ -152,9 +139,14 @@ export default function ChatPlayground({
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [copiedId, setCopiedId] = useState(null);
+  const [speakingId, setSpeakingId] = useState(null);
+  const [isListening, setIsListening] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const chatEndRef = useRef(null);
 
-  // 1. Fetch tenants list if not passed from props
+  // Fetch tenants
   useEffect(() => {
     if (tenants && tenants.length > 0) {
       setTenantList(tenants);
@@ -178,7 +170,6 @@ export default function ChatPlayground({
     }
   }, [tenants]);
 
-  // Sync with prop selectedTenant
   useEffect(() => {
     if (selectedTenant) {
       const tId = selectedTenant.tenantId || selectedTenant.code;
@@ -186,7 +177,6 @@ export default function ChatPlayground({
     }
   }, [selectedTenant]);
 
-  // 2. Fetch Bots when activeTenantId changes
   useEffect(() => {
     if (activeTenantId) {
       fetchBotsForTenant(activeTenantId);
@@ -220,7 +210,6 @@ export default function ChatPlayground({
     }
   };
 
-  // Welcome message when bot changes
   useEffect(() => {
     if (activeBotId && activeTenantId) {
       const curBot = availableBots.find(b => (b.botId === activeBotId || b.code === activeBotId));
@@ -239,14 +228,13 @@ export default function ChatPlayground({
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || loading || !activeBotId || !activeTenantId) return;
+  const executeQuery = async (queryText) => {
+    if (!queryText.trim() || loading || !activeBotId || !activeTenantId) return;
 
     const userMsg = {
       id: Date.now().toString(),
       role: 'user',
-      content: input.trim(),
+      content: queryText.trim(),
       timestamp: new Date()
     };
 
@@ -290,28 +278,98 @@ export default function ChatPlayground({
     }
   };
 
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    executeQuery(input);
+  };
+
+  const copyToClipboard = (text, id) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  const handleSpeak = (text, id) => {
+    if (!('speechSynthesis' in window)) return;
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      if (speakingId === id) {
+        setSpeakingId(null);
+        return;
+      }
+    }
+    const clean = text.replace(/<[^>]*>?/gm, '').replace(/[*_#`~]/g, '');
+    const u = new SpeechSynthesisUtterance(clean);
+    setSpeakingId(id);
+    u.onend = () => setSpeakingId(null);
+    u.onerror = () => setSpeakingId(null);
+    window.speechSynthesis.speak(u);
+  };
+
+  const toggleVoiceInput = () => {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) {
+      if (showToast) showToast('Voice recognition is not supported in this browser.', 'warning');
+      return;
+    }
+    const rec = new SpeechRec();
+    rec.continuous = false;
+    rec.lang = 'en-US';
+    rec.onstart = () => setIsListening(true);
+    rec.onresult = (e) => {
+      setInput(e.results[0][0].transcript);
+    };
+    rec.onend = () => setIsListening(false);
+    rec.onerror = () => setIsListening(false);
+    rec.start();
+  };
+
+  const downloadTranscript = () => {
+    let md = `# Conversation Transcript\n\n`;
+    md += `**Date:** ${new Date().toLocaleString()}\n`;
+    md += `**Tenant:** ${activeTenantId}\n`;
+    md += `**Bot:** ${activeBotId}\n\n---\n\n`;
+
+    messages.forEach(m => {
+      md += `**[${new Date(m.timestamp).toLocaleTimeString()}] ${m.role === 'user' ? 'User' : 'Assistant'}:**\n${m.content}\n\n`;
+    });
+
+    const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `playground-transcript-${Date.now()}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   const activeIndexName = `${(activeTenantId || '').toLowerCase().replace(/\s+/g, '_')}_${(activeBotId || '').toLowerCase().replace(/\s+/g, '_')}`;
 
+  const displayedMessages = messages.filter(m => {
+    if (!searchQuery.trim()) return true;
+    return m.content.toLowerCase().includes(searchQuery.trim().toLowerCase());
+  });
+
   return (
-    <div className="max-w-5xl mx-auto h-full flex flex-col gap-3.5">
+    <div className="w-full h-full flex flex-col gap-3 min-h-0 overflow-hidden">
       
-      {/* Top Header & Context Selectors */}
+      {/* Context Selectors Header */}
       <div className="border-b border-iso-border pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-serif tracking-tight text-iso-primary font-bold">Chatbot Playground</h1>
-            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px] font-mono font-bold">
-              LIVE RAG PIPELINE
+            <h1 className="text-xl font-bold tracking-tight text-iso-primary">Chatbot Playground</h1>
+            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-mono font-medium">
+              RAG Engine
             </span>
           </div>
-          <p className="text-[11px] text-iso-textMuted mt-0.5">
-            Test real-time Intent Classification, Query Rewriting, KNN Vector Retrieval, and Groq/LLM generation.
+          <p className="text-xs text-iso-textMuted mt-0.5">
+            Test and inspect vector retrieval, prompt grounding, and generated answers.
           </p>
         </div>
 
-        {/* Tenant & Bot Selector Dropdowns strictly using tenantId & botId */}
-        <div className="flex items-center gap-2.5">
-          {/* Tenant Selector */}
+        {/* Tenant & Bot Selectors */}
+        <div className="flex items-center gap-2">
           <CustomDropdown
             value={activeTenantId}
             onChange={(newTId) => {
@@ -328,7 +386,6 @@ export default function ChatPlayground({
             placeholder="Organization..."
           />
 
-          {/* Bot Selector */}
           <CustomDropdown
             value={activeBotId}
             onChange={(newBId) => {
@@ -348,70 +405,83 @@ export default function ChatPlayground({
         </div>
       </div>
 
-      {/* RAG Context Banner */}
-      <div className="bg-iso-bgSecondary border border-iso-border/70 rounded-md px-3.5 py-2 flex items-center justify-between text-xs shrink-0">
-        <div className="flex items-center gap-2">
-          <Sparkles size={13} className="text-iso-accent shrink-0" />
-          <span className="text-iso-text text-[11px]">
-            Active Vector Partition: <strong className="font-mono text-iso-primary">{activeIndexName}</strong>
-          </span>
-        </div>
-        <div className="flex items-center gap-3 text-iso-textMuted text-[10px] font-mono">
-          <span>Provider: <strong>Groq / OpenAI</strong></span>
-          <span>•</span>
-          <span>KNN Embeddings: <strong>1024-dim</strong></span>
-        </div>
-      </div>
-
-      {/* Main Chat Interface (Fits page height and fills remaining space) */}
-      <div className="bg-iso-cardBg border border-iso-border rounded-lg shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
+      {/* Main Chat Interface */}
+      <div className="bg-white border border-iso-border rounded-lg flex flex-col flex-1 min-h-0 overflow-hidden shadow-2xs">
         
-        {/* Chat Header */}
-        <div className="px-4 py-2.5 border-b border-iso-border bg-iso-bgSecondary flex items-center justify-between shrink-0">
+        {/* Chat Toolbar Header */}
+        <div className="px-4 py-2 border-b border-iso-border bg-slate-50/70 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs font-bold text-iso-primary">
-              Live Pipeline Session ({activeBotId || 'Select a Bot'})
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="text-xs font-semibold text-iso-primary">
+              {activeBotId || 'Assistant'}
             </span>
+            <span className="text-[11px] text-iso-textMuted">• {activeIndexName}</span>
           </div>
 
-          <button
-            onClick={() => {
-              const curBot = availableBots.find(b => (b.botId === activeBotId || b.code === activeBotId));
-              setMessages([{
-                id: 'welcome',
-                role: 'assistant',
-                content: `Chat session reset. Hello! How can I assist you?`,
-                timestamp: new Date()
-              }]);
-            }}
-            className="p-1 text-iso-textMuted hover:text-iso-primary rounded text-xs flex items-center gap-1 cursor-pointer"
-            title="Reset Chat"
-          >
-            <RefreshCw size={12} />
-            <span className="text-[10px] font-mono">Reset</span>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setSearchOpen(!searchOpen)}
+              className={`p-1.5 rounded text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 cursor-pointer ${searchOpen ? 'bg-slate-200/70 text-slate-900' : ''}`}
+              title="Search conversation"
+            >
+              <Search size={13} />
+            </button>
+            <button
+              onClick={downloadTranscript}
+              className="p-1.5 rounded text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 cursor-pointer"
+              title="Download transcript"
+            >
+              <Download size={13} />
+            </button>
+            <button
+              onClick={() => {
+                setMessages([{
+                  id: 'welcome',
+                  role: 'assistant',
+                  content: `Session reset. Hello! How can I assist you?`,
+                  timestamp: new Date()
+                }]);
+              }}
+              className="p-1.5 rounded text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 cursor-pointer"
+              title="Reset conversation"
+            >
+              <RefreshCw size={12} />
+            </button>
+          </div>
         </div>
 
-        {/* Message Stream */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 text-xs bg-iso-bg/40 min-h-0">
-          {messages.map(msg => (
+        {/* Search Overlay */}
+        {searchOpen && (
+          <div className="px-4 py-1.5 bg-slate-100 border-b border-iso-border flex items-center gap-2 shrink-0">
+            <Search size={13} className="text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Filter messages..."
+              className="flex-1 bg-transparent text-xs outline-none text-slate-800"
+              autoFocus
+            />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="text-slate-400 hover:text-slate-600">
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Messages Stream */}
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 text-xs bg-slate-50/40 min-h-0">
+          {displayedMessages.map(msg => (
             <div 
               key={msg.id} 
-              className={`flex items-end gap-2 ${msg.role === 'user' ? 'flex-row-reverse self-end max-w-[85%]' : 'flex-row self-start max-w-[85%]'}`}
+              className={`flex flex-col gap-1 max-w-[85%] ${msg.role === 'user' ? 'self-end items-end' : 'self-start items-start'}`}
             >
-              {/* Avatar */}
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-white shadow-2xs ${
-                msg.role === 'user' ? 'bg-iso-primary' : 'bg-slate-700'
-              }`}>
-                {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
-              </div>
-
               <div 
-                className={`p-3.5 leading-relaxed shadow-2xs ${
+                className={`p-3 leading-relaxed text-xs ${
                   msg.role === 'user' 
-                    ? 'bg-iso-primary text-white font-medium rounded-2xl rounded-br-xs' 
-                    : 'bg-iso-cardBg border border-iso-border text-iso-text rounded-2xl rounded-bl-xs'
+                    ? 'bg-iso-primary text-white rounded-xl rounded-tr-xs' 
+                    : 'bg-white border border-iso-border text-slate-800 rounded-xl rounded-tl-xs shadow-2xs'
                 }`}
               >
                 {msg.role === 'user' ? (
@@ -423,38 +493,32 @@ export default function ChatPlayground({
                   />
                 )}
 
-                {/* Intent & Citations Pill */}
+                {/* Intent & Citations */}
                 {msg.role === 'assistant' && (msg.intent || (msg.sources && msg.sources.length > 0)) && (
-                  <div className="mt-2.5 pt-2 border-t border-iso-border/50 flex flex-wrap items-center gap-2 text-[10px] font-mono">
+                  <div className="mt-2 pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2 text-[10px] font-mono">
                     {msg.intent && (
-                      <span className={`px-1.5 py-0.5 rounded border ${
-                        msg.intent === 'smalltalk' ? 'bg-amber-50 text-amber-800 border-amber-200' :
-                        msg.intent === 'ambiguous' ? 'bg-purple-50 text-purple-800 border-purple-200' :
-                        'bg-blue-50 text-blue-800 border-blue-200'
-                      }`}>
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                         Intent: {msg.intent}
                       </span>
                     )}
-
                     {msg.retrievedChunksCount > 0 && (
-                      <span className="text-iso-textMuted">
-                        {msg.retrievedChunksCount} chunk(s) retrieved ({msg.latencyMs}ms)
+                      <span className="text-slate-400">
+                        {msg.retrievedChunksCount} chunk(s) • {msg.latencyMs}ms
                       </span>
                     )}
-
                     {msg.sources && msg.sources.length > 0 && (
                       <div className="flex items-center gap-1">
-                        <span className="text-iso-textMuted">Sources:</span>
+                        <span className="text-slate-400">Sources:</span>
                         {msg.sources.map((src, i) => (
                           <a 
                             key={i} 
                             href={src} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-iso-accent hover:underline flex items-center gap-0.5 truncate max-w-[150px]"
+                            className="text-sky-600 hover:underline flex items-center gap-0.5 truncate max-w-[130px]"
                           >
                             <span>{src.replace(/^https?:\/\//, '')}</span>
-                            <ExternalLink size={9} />
+                            <ExternalLink size={8} />
                           </a>
                         ))}
                       </div>
@@ -462,37 +526,84 @@ export default function ChatPlayground({
                   </div>
                 )}
               </div>
-              <span className="text-[9px] font-mono text-iso-textMuted mt-1 px-1">
-                {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
+
+              {/* Message Footer Actions */}
+              <div className="flex items-center gap-2 px-1 text-[10px] text-slate-400">
+                <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                {msg.role === 'assistant' && (
+                  <div className="flex items-center gap-1">
+                    <button 
+                      onClick={() => copyToClipboard(msg.content, msg.id)}
+                      className="hover:text-slate-700 cursor-pointer p-0.5"
+                      title="Copy"
+                    >
+                      {copiedId === msg.id ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
+                    </button>
+                    <button 
+                      onClick={() => handleSpeak(msg.content, msg.id)}
+                      className={`hover:text-slate-700 cursor-pointer p-0.5 ${speakingId === msg.id ? 'text-sky-600' : ''}`}
+                      title="Read aloud"
+                    >
+                      <Volume2 size={11} />
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
 
           {loading && (
-            <div className="flex items-center gap-2 text-iso-textMuted text-xs p-2">
-              <Loader2 size={14} className="animate-spin text-iso-accent" />
-              <span className="font-mono text-[11px]">Classifying intent &amp; searching vector knowledge...</span>
+            <div className="flex items-center gap-2 text-slate-400 text-xs p-2">
+              <Loader2 size={13} className="animate-spin text-iso-primary" />
+              <span className="text-[11px]">Searching knowledge base...</span>
             </div>
           )}
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input Bar */}
-        <form onSubmit={handleSubmit} className="p-3 border-t border-iso-border flex items-center gap-2 bg-iso-cardBg shrink-0">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message (e.g. greetings, questions from ingested documents)..."
-            className="flex-1 bg-iso-bg border border-iso-border focus:border-iso-accent rounded-sm px-3 py-2 text-xs text-iso-text outline-none"
-            disabled={loading || !activeBotId}
-          />
+        {/* Starter Prompts */}
+        {messages.length <= 2 && (
+          <div className="px-4 py-2 bg-white border-t border-iso-border/70 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
+            <span className="text-[10px] font-mono text-slate-400 shrink-0">Try:</span>
+            {STARTER_PROMPTS.map((p, idx) => (
+              <button
+                key={idx}
+                onClick={() => executeQuery(p.query)}
+                className="px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md text-[11px] text-slate-700 whitespace-nowrap transition-colors cursor-pointer"
+              >
+                {p.title}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Composer */}
+        <form onSubmit={handleSubmit} className="p-3 border-t border-iso-border flex items-center gap-2 bg-white shrink-0">
+          <div className="flex-1 bg-slate-50 border border-slate-200 focus-within:border-iso-primary focus-within:bg-white rounded-md px-3 py-1.5 flex items-center gap-2 transition-colors">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Type your question..."
+              className="flex-1 bg-transparent text-xs text-slate-800 outline-none"
+              disabled={loading || !activeBotId}
+            />
+            <button
+              type="button"
+              onClick={toggleVoiceInput}
+              className={`p-1 rounded text-slate-400 hover:text-slate-700 cursor-pointer transition-colors ${isListening ? 'text-red-500' : ''}`}
+              title="Voice Input"
+            >
+              <Mic size={14} />
+            </button>
+          </div>
+
           <button
             type="submit"
             disabled={loading || !input.trim() || !activeBotId}
-            className="px-4 py-2 bg-iso-primary hover:bg-iso-primaryLight disabled:opacity-50 text-white rounded-sm text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+            className="px-3.5 py-2 bg-iso-primary hover:bg-iso-primaryLight disabled:opacity-40 text-white rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
           >
-            <Send size={13} />
+            <Send size={12} />
             <span>Send</span>
           </button>
         </form>

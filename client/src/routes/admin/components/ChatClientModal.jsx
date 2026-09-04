@@ -62,6 +62,7 @@ export default function ChatClientModal({
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({});
   const [newGreeting, setNewGreeting] = useState("");
+  const [newQuickReply, setNewQuickReply] = useState("");
   const [newIdleMsg, setNewIdleMsg] = useState({ message: "", time: 180 });
   const [rawJson, setRawJson] = useState("");
   const [jsonError, setJsonError] = useState(null);
@@ -78,6 +79,7 @@ export default function ChatClientModal({
           description: editingBot.description || "",
           botActive: editingBot.botActive !== false,
           greetingMessage: Array.isArray(editingBot.greetingMessage) ? [...editingBot.greetingMessage] : ["Hi! How can I assist you today?"],
+          quickReplies: Array.isArray(editingBot.quickReplies) ? [...editingBot.quickReplies] : (Array.isArray(editingBot.botUIConfigs?.starterQuestions) ? [...editingBot.botUIConfigs.starterQuestions] : ["Academic Assistance", "Technology Support", "Tuition & Financial Aid", "Advising Services"]),
           customForms: Array.isArray(editingBot.customForms) ? [...editingBot.customForms] : [],
           botUIConfigs: {
             ...DEFAULT_BOT_UI_CONFIGS,
@@ -95,6 +97,7 @@ export default function ChatClientModal({
           description: "",
           botActive: true,
           greetingMessage: [`Hi! I am ${activeTenant?.name || "AI"} Assistant. How can I help you today?`],
+          quickReplies: ["Academic Assistance", "Technology Support", "Tuition & Financial Aid", "Advising Services"],
           customForms: [],
           botUIConfigs: {
             ...DEFAULT_BOT_UI_CONFIGS,
@@ -138,6 +141,22 @@ export default function ChatClientModal({
     setFormData(prev => ({
       ...prev,
       greetingMessage: (prev.greetingMessage || []).filter((_, i) => i !== idx)
+    }));
+  };
+
+  const addQuickReply = () => {
+    if (!newQuickReply.trim()) return;
+    setFormData(prev => ({
+      ...prev,
+      quickReplies: [...(prev.quickReplies || []), newQuickReply.trim()]
+    }));
+    setNewQuickReply("");
+  };
+
+  const removeQuickReply = (idx) => {
+    setFormData(prev => ({
+      ...prev,
+      quickReplies: (prev.quickReplies || []).filter((_, i) => i !== idx)
     }));
   };
 
@@ -500,6 +519,27 @@ export default function ChatClientModal({
               </div>
 
               <div>
+                <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1 font-semibold">Quick Reply Chips / Starter Prompts (quickReplies)</label>
+                <div className="flex flex-col gap-2 p-3 bg-iso-bg border border-iso-border rounded-sm">
+                  <div className="flex flex-wrap gap-1.5">
+                    {(formData.quickReplies || []).map((chip, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1.5 bg-iso-cardBg border border-iso-border rounded-full px-2.5 py-1 text-xs text-iso-text font-medium">
+                        {chip}
+                        <button type="button" onClick={() => removeQuickReply(idx)} className="text-iso-textMuted hover:text-iso-error"><X size={12} /></button>
+                      </span>
+                    ))}
+                    {(formData.quickReplies || []).length === 0 && (
+                      <span className="text-xs text-iso-textMuted italic">No quick reply chips added yet.</span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-1">
+                    <input type="text" value={newQuickReply} onChange={(e) => setNewQuickReply(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addQuickReply(); } }} placeholder="Add suggestion chip..." className="flex-1 bg-iso-cardBg border border-iso-border rounded px-3 py-1 text-xs outline-none" />
+                    <button type="button" onClick={addQuickReply} className="px-3 py-1 bg-iso-bgSecondary hover:bg-iso-accent hover:text-white border border-iso-border rounded text-xs font-bold">Add Pill</button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
                 <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1 font-semibold">Idle Timeout Messages (idleStatMessages)</label>
                 <div className="flex flex-col gap-2 p-3 bg-iso-bg border border-iso-border rounded-sm">
                   {(formData.botUIConfigs?.idleStatMessages || []).map((item, idx) => (
@@ -523,22 +563,80 @@ export default function ChatClientModal({
 
           {/* TAB 4: CUSTOM FORMS */}
           {activeTab === "forms" && (
-            <div className="flex flex-col gap-3">
-              <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block font-semibold">Registered Custom Forms ({formData.customForms?.length || 0})</label>
-              {(formData.customForms || []).map((form, idx) => (
-                <div key={idx} className="p-3 bg-iso-cardBg border border-iso-border rounded-sm flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-iso-primary text-xs">{form.title || form.name}</span>
-                    <span className="font-mono text-[9px] text-iso-accent bg-iso-bgSecondary px-1.5 py-0.5 rounded border border-iso-border">{form.name}</span>
+            <div className="flex flex-col gap-4">
+              {/* Session End / Survey Form Customization */}
+              <div className="p-3 bg-iso-bg border border-iso-border rounded-sm flex flex-col gap-2.5">
+                <span className="text-xs font-bold text-iso-primary">Session End / Feedback Survey Button Customization</span>
+                <p className="text-[11px] text-iso-textMuted">Customize the submit button text and color displayed on the end chat / survey feedback form.</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                  <div>
+                    <label className="text-[9px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1">Submit Button Text</label>
+                    <input 
+                      type="text" 
+                      value={formData.botUIConfigs?.surveySubmitButtonText || ""} 
+                      onChange={(e) => updateUIField("surveySubmitButtonText", e.target.value)} 
+                      placeholder="e.g. Submit Feedback" 
+                      className="w-full bg-iso-cardBg border border-iso-border rounded px-2.5 py-1.5 text-xs text-iso-text outline-none" 
+                    />
                   </div>
-                  <p className="text-[10px] text-iso-textMuted font-mono">
-                    Intent: {(form.intent || []).join(", ") || "none"} | Fields: {(form.payload?.fields || form.fields || []).length}
-                  </p>
+                  <div>
+                    <label className="text-[9px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1">Button Background Color</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="color" 
+                        value={formData.botUIConfigs?.surveySubmitButtonColor || formData.botUIConfigs?.botThemeColor || "#00306D"} 
+                        onChange={(e) => updateUIField("surveySubmitButtonColor", e.target.value)} 
+                        className="w-7 h-7 rounded border border-iso-border cursor-pointer p-0 bg-transparent shrink-0" 
+                      />
+                      <input 
+                        type="text" 
+                        value={formData.botUIConfigs?.surveySubmitButtonColor || ""} 
+                        onChange={(e) => updateUIField("surveySubmitButtonColor", e.target.value)} 
+                        placeholder="#00306D" 
+                        className="w-full bg-iso-cardBg border border-iso-border rounded px-2 py-1 text-xs font-mono text-iso-text outline-none" 
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[9px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1">Button Text Color</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="color" 
+                        value={formData.botUIConfigs?.surveySubmitButtonTextColor || "#FFFFFF"} 
+                        onChange={(e) => updateUIField("surveySubmitButtonTextColor", e.target.value)} 
+                        className="w-7 h-7 rounded border border-iso-border cursor-pointer p-0 bg-transparent shrink-0" 
+                      />
+                      <input 
+                        type="text" 
+                        value={formData.botUIConfigs?.surveySubmitButtonTextColor || ""} 
+                        onChange={(e) => updateUIField("surveySubmitButtonTextColor", e.target.value)} 
+                        placeholder="#FFFFFF" 
+                        className="w-full bg-iso-cardBg border border-iso-border rounded px-2 py-1 text-xs font-mono text-iso-text outline-none" 
+                      />
+                    </div>
+                  </div>
                 </div>
-              ))}
-              {(formData.customForms || []).length === 0 && (
-                <p className="text-xs text-iso-textMuted italic bg-iso-bgSecondary/20 p-4 rounded text-center">No interactive forms registered.</p>
-              )}
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block font-semibold mb-2">Registered Custom Forms ({formData.customForms?.length || 0})</label>
+                <div className="flex flex-col gap-2">
+                  {(formData.customForms || []).map((form, idx) => (
+                    <div key={idx} className="p-3 bg-iso-cardBg border border-iso-border rounded-sm flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-iso-primary text-xs">{form.title || form.name}</span>
+                        <span className="font-mono text-[9px] text-iso-accent bg-iso-bgSecondary px-1.5 py-0.5 rounded border border-iso-border">{form.name}</span>
+                      </div>
+                      <p className="text-[10px] text-iso-textMuted font-mono">
+                        Intent: {(form.intent || []).join(", ") || "none"} | Fields: {(form.payload?.fields || form.fields || []).length}
+                      </p>
+                    </div>
+                  ))}
+                  {(formData.customForms || []).length === 0 && (
+                    <p className="text-xs text-iso-textMuted italic bg-iso-bgSecondary/20 p-4 rounded text-center">No interactive forms registered.</p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

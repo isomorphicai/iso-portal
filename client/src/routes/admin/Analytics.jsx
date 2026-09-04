@@ -226,7 +226,7 @@ export default function Analytics({
   const totalRatingsCount = Object.values(ratingBreakdown).reduce((a, b) => a + b, 0) || 1;
 
   return (
-    <div className="max-w-7xl mx-auto flex flex-col gap-6 select-none">
+    <div className="w-full flex flex-col gap-6 select-none">
       
       {/* Header Bar & Global Action Toolbar */}
       <div className="border-b border-iso-border pb-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
