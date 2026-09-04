@@ -3,6 +3,9 @@ import {
   Send, Loader2, Info, Sparkles, ExternalLink, Bot, Building2,
   RefreshCw, MessageSquare, ShieldCheck
 } from 'lucide-react';
+import CustomDropdown from '../../components/CustomDropdown';
+
+
 
 function escapeHTML(str) {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -290,99 +293,81 @@ export default function ChatPlayground({
   const activeIndexName = `${(activeTenantId || '').toLowerCase().replace(/\s+/g, '_')}_${(activeBotId || '').toLowerCase().replace(/\s+/g, '_')}`;
 
   return (
-    <div className="max-w-4xl mx-auto flex flex-col gap-5">
+    <div className="max-w-5xl mx-auto h-full flex flex-col gap-3.5">
       
       {/* Top Header & Context Selectors */}
-      <div className="border-b border-iso-border pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="border-b border-iso-border pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-serif tracking-tight text-iso-primary font-bold">Chatbot Playground</h1>
-            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[10px] font-mono font-bold">
+            <h1 className="text-2xl font-serif tracking-tight text-iso-primary font-bold">Chatbot Playground</h1>
+            <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-[9px] font-mono font-bold">
               LIVE RAG PIPELINE
             </span>
           </div>
-          <p className="text-xs text-iso-textMuted mt-1">
+          <p className="text-[11px] text-iso-textMuted mt-0.5">
             Test real-time Intent Classification, Query Rewriting, KNN Vector Retrieval, and Groq/LLM generation.
           </p>
         </div>
 
         {/* Tenant & Bot Selector Dropdowns strictly using tenantId & botId */}
-        <div className="flex items-center gap-3 p-2 bg-iso-cardBg border border-iso-border rounded-sm shadow-xs">
-          
+        <div className="flex items-center gap-2.5">
           {/* Tenant Selector */}
-          <div className="flex items-center gap-1.5">
-            <Building2 size={14} className="text-iso-textMuted" />
-            <select
-              value={activeTenantId}
-              onChange={(e) => {
-                const newTId = e.target.value;
-                setActiveTenantId(newTId);
-                const tObj = tenantList.find(t => (t.tenantId === newTId || t.code === newTId));
-                if (setSelectedTenant && tObj) setSelectedTenant(tObj);
-              }}
-              className="bg-iso-bg border border-iso-border rounded px-2 py-1 text-xs text-iso-text font-medium outline-none focus:border-iso-accent"
-            >
-              {tenantList.map(t => {
-                const val = t.tenantId || t.code || '';
-                return (
-                  <option key={val} value={val}>
-                    {t.tenantName || t.name || val} ({val})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
-          <span className="text-iso-border">|</span>
+          <CustomDropdown
+            value={activeTenantId}
+            onChange={(newTId) => {
+              setActiveTenantId(newTId);
+              const tObj = tenantList.find(t => (t.tenantId === newTId || t.code === newTId));
+              if (setSelectedTenant && tObj) setSelectedTenant(tObj);
+            }}
+            options={tenantList.map(t => ({
+              value: t.tenantId || t.code || '',
+              label: t.tenantName || t.name || t.tenantId,
+              badge: t.tenantId || t.code
+            }))}
+            icon={Building2}
+            placeholder="Organization..."
+          />
 
           {/* Bot Selector */}
-          <div className="flex items-center gap-1.5">
-            <Bot size={14} className="text-iso-textMuted" />
-            <select
-              value={activeBotId}
-              onChange={(e) => {
-                const newBId = e.target.value;
-                setActiveBotId(newBId);
-                const bObj = availableBots.find(b => (b.botId === newBId || b.code === newBId));
-                if (setSelectedBot && bObj) setSelectedBot(bObj);
-              }}
-              disabled={loadingBots || availableBots.length === 0}
-              className="bg-iso-bg border border-iso-border rounded px-2 py-1 text-xs text-iso-text font-medium outline-none focus:border-iso-accent disabled:opacity-50"
-            >
-              {availableBots.map(b => {
-                const val = b.botId || b.code || '';
-                return (
-                  <option key={val} value={val}>
-                    {b.botName || b.name || val} ({val})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
+          <CustomDropdown
+            value={activeBotId}
+            onChange={(newBId) => {
+              setActiveBotId(newBId);
+              const bObj = availableBots.find(b => (b.botId === newBId || b.code === newBId));
+              if (setSelectedBot && bObj) setSelectedBot(bObj);
+            }}
+            options={availableBots.map(b => ({
+              value: b.botId || b.code || '',
+              label: b.botName || b.name || b.botId,
+              badge: b.botId || b.code
+            }))}
+            disabled={loadingBots || availableBots.length === 0}
+            icon={Bot}
+            placeholder={availableBots.length === 0 ? "No bots" : "Chatbot..."}
+          />
         </div>
       </div>
 
       {/* RAG Context Banner */}
-      <div className="bg-iso-bgSecondary border border-iso-border/70 rounded-md p-3 flex items-center justify-between text-xs">
+      <div className="bg-iso-bgSecondary border border-iso-border/70 rounded-md px-3.5 py-2 flex items-center justify-between text-xs shrink-0">
         <div className="flex items-center gap-2">
-          <Sparkles size={14} className="text-iso-accent shrink-0" />
-          <span className="text-iso-text">
+          <Sparkles size={13} className="text-iso-accent shrink-0" />
+          <span className="text-iso-text text-[11px]">
             Active Vector Partition: <strong className="font-mono text-iso-primary">{activeIndexName}</strong>
           </span>
         </div>
-        <div className="flex items-center gap-3 text-iso-textMuted text-[11px] font-mono">
+        <div className="flex items-center gap-3 text-iso-textMuted text-[10px] font-mono">
           <span>Provider: <strong>Groq / OpenAI</strong></span>
           <span>•</span>
           <span>KNN Embeddings: <strong>1024-dim</strong></span>
         </div>
       </div>
 
-      {/* Main Chat Interface */}
-      <div className="bg-iso-cardBg border border-iso-border rounded-lg shadow-sm flex flex-col h-[560px] overflow-hidden">
+      {/* Main Chat Interface (Fits page height and fills remaining space) */}
+      <div className="bg-iso-cardBg border border-iso-border rounded-lg shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden">
         
         {/* Chat Header */}
-        <div className="px-4 py-3 border-b border-iso-border bg-iso-bgSecondary flex items-center justify-between">
+        <div className="px-4 py-2.5 border-b border-iso-border bg-iso-bgSecondary flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-xs font-bold text-iso-primary">
@@ -409,7 +394,7 @@ export default function ChatPlayground({
         </div>
 
         {/* Message Stream */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 text-xs bg-iso-bg/40">
+        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 text-xs bg-iso-bg/40 min-h-0">
           {messages.map(msg => (
             <div 
               key={msg.id} 
@@ -493,7 +478,7 @@ export default function ChatPlayground({
         </div>
 
         {/* Input Bar */}
-        <form onSubmit={handleSubmit} className="p-3 border-t border-iso-border flex items-center gap-2 bg-iso-cardBg">
+        <form onSubmit={handleSubmit} className="p-3 border-t border-iso-border flex items-center gap-2 bg-iso-cardBg shrink-0">
           <input
             type="text"
             value={input}

@@ -217,6 +217,8 @@ export default function App() {
 
   // Filter routes based on user permissions (Global Admin gets full access)
   const isGlobalAdmin = currentUser?.role === 'global_admin' || currentUser?.role === 'super_admin' || currentUser?.isGlobalAdmin;
+  const allowed = currentUser?.allowedMenus || [];
+
   const isPathAllowed = (path) => {
     const allRoutes = [...adminRoutes, ...clientRoutes];
     const routeObj = allRoutes.find(r => r.path === path);
@@ -339,7 +341,7 @@ export default function App() {
   const activeRoute = portalRoutes.find(r => r.path === activeRoutePath);
 
   return (
-    <div className="min-h-screen bg-iso-bg text-iso-text font-sans flex overflow-hidden">
+    <div className="h-screen w-screen bg-iso-bg text-iso-text font-sans flex overflow-hidden">
       
       {/* Toast Alert */}
       <Toast toast={toast} />
@@ -352,15 +354,18 @@ export default function App() {
         setActiveRoutePath={setActiveRoutePath}
         portalRoutes={portalRoutes}
         currentUser={currentUser}
+        setCurrentUser={setCurrentUser}
+        showToast={showToast}
         onLogout={() => handleLogout('manual')}
       />
 
       {/* Content Viewport */}
-      <main className="flex-1 flex flex-col relative overflow-y-auto">
+      <main className="flex-1 flex flex-col h-full min-w-0 overflow-y-auto overflow-x-hidden">
         <Header 
           selectedTenant={selectedTenant} 
           selectedBot={selectedBot} 
           selectedPortal={selectedPortal}
+          activeRoute={activeRoute}
           currentUser={currentUser}
           onLogout={() => handleLogout('manual')}
         />

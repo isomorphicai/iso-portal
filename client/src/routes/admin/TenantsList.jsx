@@ -562,7 +562,7 @@ export default function TenantsList({
       )}
 
       {/* SUBVIEW: CHATBOTS MANAGEMENT UNDER ACTIVE TENANT */}
-      {adminTab === "tenants" && subView === "bots" && activeTenant && (
+      {subView === "bots" && activeTenant && (
         <div className="flex flex-col gap-5">
           
           <div className="border-b border-iso-border pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">

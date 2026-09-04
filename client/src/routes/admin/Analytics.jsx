@@ -6,6 +6,7 @@ import {
   Users, Hash, ArrowUpRight, ChevronDown, Layers, Activity, ShieldCheck
 } from 'lucide-react';
 import { apiUrl } from '../../config/api';
+import CustomDropdown from '../../components/CustomDropdown';
 
 export default function Analytics({ 
   currentUser,
@@ -222,53 +223,55 @@ export default function Analytics({
         <div className="flex flex-wrap items-center gap-2.5">
           
           {/* Tenant Selector */}
-          <div className="flex items-center gap-1.5 p-1.5 bg-iso-cardBg border border-iso-border rounded-sm shadow-xs text-xs">
-            <Building2 size={13} className="text-iso-accent shrink-0" />
-            <select
-              value={activeTenantId}
-              onChange={(e) => setActiveTenantId(e.target.value)}
-              className="bg-iso-bg border border-iso-border rounded px-2 py-0.5 text-xs outline-none font-semibold text-iso-primary cursor-pointer"
-            >
-              <option value="all">All Organizations</option>
-              {tenants.map(t => {
-                const tId = t.tenantId || t.code;
-                return <option key={tId} value={tId}>{t.name || t.tenantName} ({tId})</option>;
-              })}
-            </select>
-          </div>
+          <CustomDropdown
+            value={activeTenantId}
+            onChange={(val) => {
+              setActiveTenantId(val);
+              setActiveBotId('all');
+            }}
+            options={[
+              { value: 'all', label: 'All Organizations', badge: `${tenants.length}` },
+              ...tenants.map(t => ({
+                value: t.tenantId || t.code,
+                label: t.name || t.tenantName || t.tenantId,
+                badge: t.tenantId || t.code
+              }))
+            ]}
+            icon={Building2}
+            placeholder="Organization..."
+          />
 
           {/* Bot Selector */}
-          <div className="flex items-center gap-1.5 p-1.5 bg-iso-cardBg border border-iso-border rounded-sm shadow-xs text-xs">
-            <Bot size={13} className="text-purple-600 shrink-0" />
-            <select
-              value={activeBotId}
-              onChange={(e) => setActiveBotId(e.target.value)}
-              disabled={loadingBots}
-              className="bg-iso-bg border border-iso-border rounded px-2 py-0.5 text-xs outline-none font-semibold text-iso-primary cursor-pointer disabled:opacity-50"
-            >
-              <option value="all">All Chatbots</option>
-              {availableBots.map(b => {
-                const bId = b.botId || b.code;
-                return <option key={bId} value={bId}>{b.botName || b.name} ({bId})</option>;
-              })}
-            </select>
-          </div>
+          <CustomDropdown
+            value={activeBotId}
+            onChange={setActiveBotId}
+            options={[
+              { value: 'all', label: 'All Chatbots', badge: `${availableBots.length}` },
+              ...availableBots.map(b => ({
+                value: b.botId || b.code,
+                label: b.botName || b.name || b.botId,
+                badge: b.botId || b.code
+              }))
+            ]}
+            disabled={loadingBots || activeTenantId === 'all'}
+            icon={Bot}
+            placeholder="Chatbot..."
+          />
 
           {/* Time Range Selector */}
-          <div className="flex items-center gap-1.5 p-1.5 bg-iso-cardBg border border-iso-border rounded-sm shadow-xs text-xs">
-            <Calendar size={13} className="text-iso-textMuted shrink-0" />
-            <select
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              className="bg-iso-bg border border-iso-border rounded px-2 py-0.5 text-xs outline-none font-semibold text-iso-primary cursor-pointer"
-            >
-              <option value="7d">Last 7 Days</option>
-              <option value="14d">Last 14 Days</option>
-              <option value="30d">Last 30 Days</option>
-              <option value="90d">Last 90 Days</option>
-              <option value="all">All Time</option>
-            </select>
-          </div>
+          <CustomDropdown
+            value={timeRange}
+            onChange={setTimeRange}
+            options={[
+              { value: '7d', label: 'Last 7 Days', badge: '7d' },
+              { value: '14d', label: 'Last 14 Days', badge: '14d' },
+              { value: '30d', label: 'Last 30 Days', badge: '30d' },
+              { value: '90d', label: 'Last 90 Days', badge: '90d' },
+              { value: 'all', label: 'All Time', badge: '∞' }
+            ]}
+            icon={Calendar}
+            placeholder="Time range..."
+          />
 
           {/* Action Buttons: Refresh, Export */}
           <div className="flex items-center gap-1.5">

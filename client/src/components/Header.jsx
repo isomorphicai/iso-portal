@@ -1,7 +1,7 @@
 import React from 'react';
 import { RefreshCw, LogOut } from 'lucide-react';
 
-export default function Header({ selectedTenant, selectedBot, selectedPortal, currentUser, onLogout }) {
+export default function Header({ selectedTenant, selectedBot, selectedPortal, activeRoute, currentUser, onLogout }) {
   return (
     <header className="h-14 border-b border-iso-border flex items-center justify-between px-8 bg-iso-cardBg sticky top-0 z-40 select-none">
       
@@ -14,9 +14,15 @@ export default function Header({ selectedTenant, selectedBot, selectedPortal, cu
         )}
       </div>
 
-      {/* Center: Dynamic Portal Title */}
-      <div className="absolute left-1/2 -translate-x-1/2 text-xs font-semibold tracking-wide text-iso-primary uppercase font-mono">
-        {selectedPortal ? `${selectedPortal.charAt(0).toUpperCase() + selectedPortal.slice(1)} Portal` : 'Portal'}
+      {/* Center: Dynamic Portal / Page Title */}
+      <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 text-xs font-semibold tracking-wide text-iso-primary uppercase font-mono">
+        <span>{selectedPortal ? `${selectedPortal.charAt(0).toUpperCase() + selectedPortal.slice(1)} Portal` : 'Admin Portal'}</span>
+        {activeRoute?.label && (
+          <>
+            <span className="text-iso-textMuted/60">•</span>
+            <span className="text-iso-accent font-bold">{activeRoute.label}</span>
+          </>
+        )}
       </div>
       
       {/* Right: Logout Only */}

@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   History, MessageSquare, Search, Filter, RefreshCw, Trash2,
   Download, Clock, Calendar, Building2, Bot, CheckCircle2,
-  AlertCircle, ChevronRight, ExternalLink, ArrowUpDown, User,
-  Sparkles, ShieldCheck, ThumbsUp, ThumbsDown
+  AlertCircle, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight,
+  ExternalLink, ArrowUpDown, User,
+  Sparkles, ShieldCheck, ThumbsUp, ThumbsDown, X, Copy, Check,
+  ArrowUp, ArrowDown, CalendarRange
 } from 'lucide-react';
+import CustomDropdown from '../../components/CustomDropdown';
 
 function escapeHTML(str) {
   return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -133,6 +136,15 @@ function renderFormattedMarkdown(text) {
   return str.trim();
 }
 
+const DATE_PRESET_OPTIONS = [
+  { value: 'all', label: 'All Time', badge: '∞' },
+  { value: 'today', label: 'Today', badge: '1d' },
+  { value: 'yesterday', label: 'Yesterday', badge: 'Prev' },
+  { value: 'last7days', label: 'Last 7 Days', badge: '7d' },
+  { value: 'last30days', label: 'Last 30 Days', badge: '30d' },
+  { value: 'custom', label: 'Custom Range...', badge: '📅' }
+];
+
 export default function ConversationHistory({ 
   tenants = [], 
   selectedTenant, 
@@ -146,13 +158,28 @@ export default function ConversationHistory({
 
   const [selectedStatus, setSelectedStatus] = useState('all'); // all, active, ended
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Date Filtering State
+  const [datePreset, setDatePreset] = useState('all');
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
 
+  // Sessions list & server-side pagination
   const [sessions, setSessions] = useState([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState(null);
+  const [sortBy, setSortBy] = useState('recent'); // 'recent' | 'oldest' | 'turns'
+  
+  // Pagination State (server-side per-page fetching)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalSessionsCount, setTotalSessionsCount] = useState(0);
+  const PAGE_SIZE = 8;
 
+  // Messages in active session
   const [sessionMessages, setSessionMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [copiedSessionId, setCopiedSessionId] = useState(false);
 
   // 1. Fetch tenants list if not passed from props
   useEffect(() => {
@@ -205,18 +232,54 @@ export default function ConversationHistory({
     }
   };
 
-  // 3. Fetch Sessions on filter change
+  // Compute calculated date range
+  const computedDateRange = useMemo(() => {
+    const now = new Date();
+    if (datePreset === 'today') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      return { startDate: start.toISOString(), endDate: '' };
+    }
+    if (datePreset === 'yesterday') {
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+      return { startDate: start.toISOString(), endDate: end.toISOString() };
+    }
+    if (datePreset === 'last7days') {
+      const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return { startDate: start.toISOString(), endDate: '' };
+    }
+    if (datePreset === 'last30days') {
+      const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      return { startDate: start.toISOString(), endDate: '' };
+    }
+    if (datePreset === 'custom') {
+      return {
+        startDate: customStartDate ? new Date(customStartDate).toISOString() : '',
+        endDate: customEndDate ? new Date(customEndDate).toISOString() : ''
+      };
+    }
+    return { startDate: '', endDate: '' };
+  }, [datePreset, customStartDate, customEndDate]);
+
+  // Reset to page 1 on filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedTenantId, selectedBotId, selectedStatus, computedDateRange, searchQuery]);
+
+  // 3. Fetch Sessions on page or filter change
   useEffect(() => {
     fetchSessions();
-  }, [selectedTenantId, selectedBotId, selectedStatus]);
+  }, [selectedTenantId, selectedBotId, selectedStatus, computedDateRange, currentPage]);
 
   const fetchSessions = async () => {
     setLoadingSessions(true);
     try {
-      let url = `/api/admin/conversations?limit=100`;
+      let url = `/api/admin/conversations?limit=${PAGE_SIZE}&page=${currentPage}`;
       if (selectedTenantId !== 'all') url += `&tenantId=${encodeURIComponent(selectedTenantId)}`;
       if (selectedBotId !== 'all') url += `&botId=${encodeURIComponent(selectedBotId)}`;
       if (selectedStatus !== 'all') url += `&status=${encodeURIComponent(selectedStatus)}`;
+      if (computedDateRange.startDate) url += `&startDate=${encodeURIComponent(computedDateRange.startDate)}`;
+      if (computedDateRange.endDate) url += `&endDate=${encodeURIComponent(computedDateRange.endDate)}`;
       if (searchQuery.trim()) url += `&search=${encodeURIComponent(searchQuery.trim())}`;
 
       const res = await fetch(url);
@@ -224,6 +287,15 @@ export default function ConversationHistory({
       if (json.success && json.data) {
         const list = json.data.sessions || [];
         setSessions(list);
+        
+        if (json.data.pagination) {
+          setTotalPages(json.data.pagination.pages || 1);
+          setTotalSessionsCount(json.data.pagination.total || list.length);
+        } else {
+          setTotalSessionsCount(list.length);
+          setTotalPages(Math.ceil(list.length / PAGE_SIZE) || 1);
+        }
+
         if (list.length > 0 && (!selectedSessionId || !list.some(s => s.sessionId === selectedSessionId))) {
           setSelectedSessionId(list[0].sessionId);
         } else if (list.length === 0) {
@@ -263,7 +335,7 @@ export default function ConversationHistory({
 
   // Delete session
   const handleDeleteSession = async (sId) => {
-    if (!window.confirm(`Are you sure you want to delete session ${sId} and all its messages?`)) return;
+    if (!window.confirm(`Are you sure you want to permanently delete session "${sId}" and all its turns?`)) return;
     try {
       const res = await fetch(`/api/admin/conversations/${encodeURIComponent(sId)}`, {
         method: 'DELETE'
@@ -277,6 +349,14 @@ export default function ConversationHistory({
     } catch (err) {
       if (showToast) showToast('Failed to delete session.', 'error');
     }
+  };
+
+  // Copy session ID
+  const handleCopySessionId = (sId) => {
+    navigator.clipboard.writeText(sId);
+    setCopiedSessionId(true);
+    if (showToast) showToast('Session ID copied to clipboard.', 'info');
+    setTimeout(() => setCopiedSessionId(false), 2000);
   };
 
   // Export session transcript
@@ -293,7 +373,7 @@ export default function ConversationHistory({
     text += `Total Messages: ${sessionMessages.length}\n`;
     text += `========================================================\n\n`;
 
-    sessionMessages.forEach((msg, idx) => {
+    sessionMessages.forEach((msg) => {
       const qTime = new Date(msg.queryReceivedAt || msg.createdAt).toLocaleTimeString();
       const aTime = new Date(msg.responseGivenAt || msg.createdAt).toLocaleTimeString();
       text += `[${qTime}] USER: ${msg.query}\n`;
@@ -313,6 +393,19 @@ export default function ConversationHistory({
     URL.revokeObjectURL(url);
   };
 
+  // Sorted sessions list
+  const sortedSessions = useMemo(() => {
+    const list = [...sessions];
+    if (sortBy === 'oldest') {
+      list.sort((a, b) => new Date(a.sessionStartAt || a.createdAt).getTime() - new Date(b.sessionStartAt || b.createdAt).getTime());
+    } else if (sortBy === 'turns') {
+      list.sort((a, b) => (b.totalTurns || 0) - (a.totalTurns || 0));
+    } else {
+      list.sort((a, b) => new Date(b.lastActivityAt || b.sessionStartAt || b.createdAt).getTime() - new Date(a.lastActivityAt || a.sessionStartAt || a.createdAt).getTime());
+    }
+    return list;
+  }, [sessions, sortBy]);
+
   const currentActiveSession = sessions.find(s => s.sessionId === selectedSessionId);
 
   // Compute metrics
@@ -320,164 +413,245 @@ export default function ConversationHistory({
   const activeSessionsCount = sessions.filter(s => s.sessionStatus === 'active').length;
   const totalTurnsCount = sessions.reduce((sum, s) => sum + (s.totalTurns || 0), 0);
 
+  // Dropdown options
+  const tenantOptions = [
+    { value: 'all', label: 'All Organizations', badge: `${tenantList.length}` },
+    ...tenantList.map(t => ({
+      value: t.tenantId || t.code,
+      label: t.tenantName || t.name || t.tenantId,
+      badge: t.tenantId || t.code
+    }))
+  ];
+
+  const botOptions = [
+    { value: 'all', label: 'All Chatbots', badge: `${availableBots.length}` },
+    ...availableBots.map(b => ({
+      value: b.botId || b.code,
+      label: b.botName || b.name || b.botId,
+      badge: b.botId || b.code
+    }))
+  ];
+
+  const statusOptions = [
+    { value: 'all', label: 'All Statuses' },
+    { value: 'active', label: 'Active Sessions Only', badge: 'Live' },
+    { value: 'ended', label: 'Ended Sessions Only' }
+  ];
+
   return (
-    <div className="max-w-6xl mx-auto flex flex-col gap-5">
+    <div className="max-w-7xl mx-auto h-full flex flex-col gap-3.5">
       
-      {/* Top Header & Metrics */}
-      <div className="border-b border-iso-border pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Top Header & Telemetry */}
+      <div className="border-b border-iso-border pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-serif tracking-tight text-iso-primary font-bold">Conversation History</h1>
-            <span className="px-2 py-0.5 bg-blue-50 text-blue-800 border border-blue-200 rounded text-[10px] font-mono font-bold">
-              MASTER ARCHIVE
+            <h1 className="text-2xl font-serif tracking-tight text-iso-primary font-bold">
+              Conversation History
+            </h1>
+            <span className="px-2 py-0.5 bg-iso-bgSecondary text-iso-primary border border-iso-border rounded-sm text-[9px] font-mono font-bold tracking-wider uppercase">
+              Audit Archive
             </span>
           </div>
-          <p className="text-xs text-iso-textMuted mt-1">
-            Complete audit trail of user sessions, questions, intent routings, and RAG knowledge retrievals stored in MongoDB Atlas.
+          <p className="text-[11px] text-iso-textMuted mt-0.5">
+            Complete audit trail of user inquiries, model responses, intent routing, and RAG knowledge citations.
           </p>
         </div>
 
         {/* Telemetry Pills */}
-        <div className="flex items-center gap-3">
-          <div className="px-3 py-2 bg-iso-cardBg border border-iso-border rounded-sm shadow-xs flex items-center gap-2 text-xs">
-            <span className="text-iso-textMuted">Sessions:</span>
-            <strong className="font-mono text-iso-primary">{totalSessions}</strong>
+        <div className="flex items-center gap-2">
+          <div className="px-2.5 py-1 bg-iso-cardBg border border-iso-border rounded-sm shadow-2xs flex items-center gap-1.5 text-xs">
+            <span className="text-iso-textMuted font-mono text-[10px]">Total:</span>
+            <strong className="font-mono text-iso-primary">{totalSessionsCount}</strong>
           </div>
-          <div className="px-3 py-2 bg-iso-cardBg border border-iso-border rounded-sm shadow-xs flex items-center gap-2 text-xs">
-            <span className="text-iso-textMuted">Active:</span>
+          <div className="px-2.5 py-1 bg-iso-cardBg border border-iso-border rounded-sm shadow-2xs flex items-center gap-1.5 text-xs">
+            <span className="text-iso-textMuted font-mono text-[10px]">Active:</span>
             <strong className="font-mono text-emerald-600">{activeSessionsCount}</strong>
           </div>
-          <div className="px-3 py-2 bg-iso-cardBg border border-iso-border rounded-sm shadow-xs flex items-center gap-2 text-xs">
-            <span className="text-iso-textMuted">Chat Turns:</span>
+          <div className="px-2.5 py-1 bg-iso-cardBg border border-iso-border rounded-sm shadow-2xs flex items-center gap-1.5 text-xs">
+            <span className="text-iso-textMuted font-mono text-[10px]">Turns:</span>
             <strong className="font-mono text-iso-accent">{totalTurnsCount}</strong>
           </div>
         </div>
       </div>
 
-      {/* Filter Toolbar: Tenant Filter, Bot Filter, Status Filter & Search */}
-      <div className="p-3 bg-iso-cardBg border border-iso-border rounded-md shadow-xs flex flex-wrap items-center justify-between gap-3 text-xs">
+      {/* Redesigned Themed Filter Toolbar */}
+      <div className="p-2.5 bg-iso-cardBg border border-iso-border rounded-sm shadow-xs flex flex-col gap-2 text-xs shrink-0">
         
-        <div className="flex flex-wrap items-center gap-3 flex-1">
+        {/* Row 1: Themed Dropdown Selectors & Search */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
           
-          {/* 1. Tenant / Organization Filter */}
-          <div className="flex items-center gap-1.5">
-            <Building2 size={14} className="text-iso-textMuted" />
-            <select
+          <div className="flex flex-wrap items-center gap-2 flex-1">
+            
+            {/* 1. Organization Dropdown */}
+            <CustomDropdown
               value={selectedTenantId}
-              onChange={(e) => {
-                setSelectedTenantId(e.target.value);
+              onChange={(val) => {
+                setSelectedTenantId(val);
                 setSelectedBotId('all');
               }}
-              className="bg-iso-bg border border-iso-border rounded px-2.5 py-1 text-xs text-iso-text font-medium outline-none focus:border-iso-accent cursor-pointer"
-            >
-              <option value="all">🏢 All Organizations</option>
-              {tenantList.map(t => {
-                const val = t.tenantId || t.code || '';
-                return (
-                  <option key={val} value={val}>
-                    {t.tenantName || val} ({val})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+              options={tenantOptions}
+              icon={Building2}
+              placeholder="Organization..."
+            />
 
-          {/* 2. Bot Filter */}
-          <div className="flex items-center gap-1.5">
-            <Bot size={14} className="text-iso-textMuted" />
-            <select
+            {/* 2. Bot Dropdown */}
+            <CustomDropdown
               value={selectedBotId}
-              onChange={(e) => setSelectedBotId(e.target.value)}
-              disabled={loadingBots}
-              className="bg-iso-bg border border-iso-border rounded px-2.5 py-1 text-xs text-iso-text font-medium outline-none focus:border-iso-accent cursor-pointer disabled:opacity-50"
-            >
-              <option value="all">🤖 All Bots</option>
-              {availableBots.map(b => {
-                const val = b.botId || b.code || '';
-                return (
-                  <option key={val} value={val}>
-                    {b.botName || b.name || val} ({val})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+              onChange={setSelectedBotId}
+              options={botOptions}
+              disabled={loadingBots || (selectedTenantId !== 'all' && availableBots.length === 0)}
+              icon={Bot}
+              placeholder={availableBots.length === 0 && selectedTenantId !== 'all' ? "No bots found" : "All Chatbots"}
+            />
 
-          {/* 3. Status Filter */}
-          <div className="flex items-center gap-1.5">
-            <Filter size={14} className="text-iso-textMuted" />
-            <select
+            {/* 3. Session Status Dropdown */}
+            <CustomDropdown
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-iso-bg border border-iso-border rounded px-2.5 py-1 text-xs text-iso-text font-medium outline-none focus:border-iso-accent cursor-pointer"
+              onChange={setSelectedStatus}
+              options={statusOptions}
+              placeholder="All Statuses"
+            />
+
+            {/* 4. Date Filter Dropdown */}
+            <CustomDropdown
+              value={datePreset}
+              onChange={setDatePreset}
+              options={[
+                { value: 'all', label: 'All Time' },
+                { value: 'today', label: 'Today', badge: 'Live' },
+                { value: 'yesterday', label: 'Yesterday' },
+                { value: 'last7days', label: 'Last 7 Days' },
+                { value: 'last30days', label: 'Last 30 Days' },
+                { value: 'custom', label: 'Custom Range...' }
+              ]}
+              icon={Calendar}
+              placeholder="Date range..."
+            />
+
+            {/* 5. Live Search */}
+            <form 
+              onSubmit={(e) => { e.preventDefault(); setCurrentPage(1); fetchSessions(); }}
+              className="flex items-center gap-1.5 flex-1 min-w-[200px]"
             >
-              <option value="all">All Statuses</option>
-              <option value="active">Active Sessions</option>
-              <option value="ended">Ended Sessions</option>
-            </select>
+              <div className="relative flex-1">
+                <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-iso-textMuted" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search query, answer, session ID..."
+                  className="w-full bg-iso-bg border border-iso-border focus:border-iso-accent rounded-sm pl-8 pr-7 py-1.5 text-xs text-iso-text outline-none transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-iso-textMuted hover:text-iso-text cursor-pointer"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
+              </div>
+            </form>
+
           </div>
 
-          {/* 4. Search Bar */}
-          <form 
-            onSubmit={(e) => { e.preventDefault(); fetchSessions(); }}
-            className="flex items-center gap-1.5 flex-1 min-w-[200px]"
+          {/* Refresh Action */}
+          <button
+            onClick={() => { setCurrentPage(1); fetchSessions(); }}
+            disabled={loadingSessions}
+            className="px-2.5 py-1.5 bg-iso-bg hover:bg-iso-bgSecondary border border-iso-border rounded-sm text-iso-text hover:text-iso-primary flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors shadow-2xs"
+            title="Refresh Conversation Sessions"
           >
-            <div className="relative flex-1">
-              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-iso-textMuted" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search user query, response, or sessionId..."
-                className="w-full bg-iso-bg border border-iso-border focus:border-iso-accent rounded pl-8 pr-3 py-1 text-xs text-iso-text outline-none"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-3 py-1 bg-iso-primary hover:bg-iso-primaryLight text-white rounded text-xs font-bold transition-all shadow-xs cursor-pointer"
-            >
-              Search
-            </button>
-          </form>
+            <RefreshCw size={12} className={loadingSessions ? 'animate-spin text-iso-accent' : 'text-iso-textMuted'} />
+            <span className="text-[11px] font-mono font-medium">Refresh</span>
+          </button>
+
         </div>
 
-        {/* Refresh Button */}
-        <button
-          onClick={fetchSessions}
-          disabled={loadingSessions}
-          className="p-1.5 border border-iso-border hover:bg-iso-bg rounded text-iso-textMuted hover:text-iso-primary flex items-center gap-1 cursor-pointer shrink-0"
-          title="Refresh History"
-        >
-          <RefreshCw size={13} className={loadingSessions ? 'animate-spin' : ''} />
-          <span className="text-[11px] font-mono">Refresh</span>
-        </button>
+        {/* Row 2: Custom Date Range Pickers (shown when custom is selected) */}
+        {datePreset === 'custom' && (
+          <div className="pt-2 border-t border-iso-border/70 flex flex-wrap items-center gap-3 bg-iso-bgSecondary/30 p-2 rounded-sm animate-in fade-in duration-150">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-iso-textMuted font-bold flex items-center gap-1">
+              <CalendarRange size={12} className="text-iso-accent" /> Date Range:
+            </span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-mono text-iso-textMuted">From:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="bg-iso-cardBg border border-iso-border rounded-sm px-2 py-1 text-xs text-iso-text outline-none focus:border-iso-accent font-mono"
+                />
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] font-mono text-iso-textMuted">To:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="bg-iso-cardBg border border-iso-border rounded-sm px-2 py-1 text-xs text-iso-text outline-none focus:border-iso-accent font-mono"
+                />
+              </div>
+              {(customStartDate || customEndDate) && (
+                <button
+                  type="button"
+                  onClick={() => { setCustomStartDate(''); setCustomEndDate(''); }}
+                  className="px-2 py-1 text-[10px] font-mono text-iso-error hover:bg-iso-errorBg border border-iso-error/20 rounded-sm transition-colors cursor-pointer"
+                >
+                  Clear Dates
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
       </div>
 
-      {/* Main Split Layout: Left Sessions List + Right Thread Viewer */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-[580px]">
+      {/* Main Split View: Left Sessions List + Right Thread Viewer (Fits remaining height) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 flex-1 min-h-0">
         
         {/* Left Pane: Sessions List (5 Cols) */}
-        <div className="lg:col-span-5 bg-iso-cardBg border border-iso-border rounded-lg shadow-sm flex flex-col h-[580px] overflow-hidden">
+        <div className="lg:col-span-5 bg-iso-cardBg border border-iso-border rounded-sm shadow-xs flex flex-col h-full min-h-0 overflow-hidden">
           
-          <div className="px-3.5 py-2.5 border-b border-iso-border bg-iso-bgSecondary flex items-center justify-between text-xs font-bold text-iso-primary">
-            <span>Sessions List ({sessions.length})</span>
-            <span className="text-[10px] font-mono text-iso-textMuted">Sorted by Recent Activity</span>
+          {/* Header & Sort Control */}
+          <div className="px-3.5 py-2.5 border-b border-iso-border bg-iso-bgSecondary/60 flex items-center justify-between text-xs shrink-0">
+            <div className="flex items-center gap-1.5 font-serif font-bold text-iso-primary">
+              <History size={14} className="text-iso-accent" />
+              <span>Sessions ({totalSessionsCount})</span>
+            </div>
+
+            {/* Sort Toggle */}
+            <div className="flex items-center gap-1 text-[10px] font-mono text-iso-textMuted">
+              <span>Sort:</span>
+              <button
+                type="button"
+                onClick={() => setSortBy(sortBy === 'recent' ? 'oldest' : sortBy === 'oldest' ? 'turns' : 'recent')}
+                className="px-1.5 py-0.5 bg-iso-cardBg border border-iso-border hover:border-iso-primary rounded-xs font-bold text-iso-primary transition-colors cursor-pointer flex items-center gap-1"
+                title="Cycle sort order"
+              >
+                <span>{sortBy === 'recent' ? 'Most Recent' : sortBy === 'oldest' ? 'Oldest' : 'Most Turns'}</span>
+                {sortBy === 'recent' ? <ArrowDown size={10} /> : sortBy === 'oldest' ? <ArrowUp size={10} /> : <ArrowUpDown size={10} />}
+              </button>
+            </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto divide-y divide-iso-border/60">
+          {/* Sessions Scrollable List */}
+          <div className="flex-1 overflow-y-auto divide-y divide-iso-border/60 min-h-0">
             {loadingSessions ? (
-              <div className="p-8 text-center text-iso-textMuted text-xs flex flex-col items-center gap-2">
-                <RefreshCw size={16} className="animate-spin text-iso-accent" />
-                <span>Loading conversation sessions...</span>
+              <div className="p-10 text-center text-iso-textMuted text-xs flex flex-col items-center justify-center gap-2 h-full">
+                <RefreshCw size={18} className="animate-spin text-iso-accent" />
+                <span className="font-mono text-[11px]">Loading conversation history...</span>
               </div>
-            ) : sessions.length === 0 ? (
-              <div className="p-8 text-center text-iso-textMuted text-xs flex flex-col items-center gap-2">
-                <History size={24} className="opacity-30" />
-                <span>No conversation sessions found matching criteria.</span>
+            ) : sortedSessions.length === 0 ? (
+              <div className="p-10 text-center text-iso-textMuted text-xs flex flex-col items-center justify-center gap-2 h-full">
+                <History size={28} className="text-iso-textMuted/40" />
+                <span className="font-medium text-iso-primary">No matching conversations</span>
+                <span className="text-[11px] text-iso-textMuted">Try adjusting your filters or date range.</span>
               </div>
             ) : (
-              sessions.map(s => {
+              sortedSessions.map((s) => {
                 const isSelected = s.sessionId === selectedSessionId;
                 const isActive = s.sessionStatus === 'active';
                 const startTime = s.sessionStartAt ? new Date(s.sessionStartAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
@@ -487,30 +661,30 @@ export default function ConversationHistory({
                   <div
                     key={s.sessionId}
                     onClick={() => setSelectedSessionId(s.sessionId)}
-                    className={`p-3.5 cursor-pointer transition-all flex flex-col gap-1.5 ${
+                    className={`p-3 cursor-pointer transition-all flex flex-col gap-1.5 ${
                       isSelected 
-                        ? 'bg-blue-50/70 border-l-3 border-l-iso-accent shadow-2xs' 
-                        : 'hover:bg-iso-bgSecondary/60'
+                        ? 'bg-iso-bg border-l-3 border-l-iso-accent shadow-xs' 
+                        : 'hover:bg-iso-bgSecondary/40'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 truncate">
-                        <span className="font-mono text-[11px] font-bold text-iso-primary truncate max-w-[160px]">
+                        <span className="font-mono text-[11px] font-bold text-iso-primary truncate max-w-[150px]">
                           {s.sessionId}
                         </span>
-                        <span className="px-1.5 py-0.2 bg-slate-100 border border-slate-200 rounded text-[9px] font-mono text-slate-700">
+                        <span className="px-1.5 py-0.2 bg-iso-bgSecondary border border-iso-border rounded-xs text-[9px] font-mono text-iso-textMuted">
                           {s.botId}
                         </span>
                       </div>
 
                       {/* Status Badge */}
-                      <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold flex items-center gap-1 ${
+                      <span className={`px-1.5 py-0.5 rounded-xs text-[9px] font-mono font-bold flex items-center gap-1 ${
                         isActive 
                           ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
                           : 'bg-slate-100 text-slate-600 border border-slate-200'
                       }`}>
                         {isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                        {isActive ? 'Active' : 'Ended'}
+                        <span>{isActive ? 'ACTIVE' : 'ENDED'}</span>
                       </span>
                     </div>
 
@@ -522,9 +696,9 @@ export default function ConversationHistory({
                     {/* Metadata Footer */}
                     <div className="flex items-center justify-between text-[10px] font-mono text-iso-textMuted mt-0.5">
                       <span>{startDate} at {startTime}</span>
-                      <span className="flex items-center gap-1">
-                        <MessageSquare size={10} />
-                        <strong>{s.totalTurns}</strong> {s.totalTurns === 1 ? 'turn' : 'turns'}
+                      <span className="flex items-center gap-1 text-iso-primary font-semibold">
+                        <MessageSquare size={10} className="text-iso-accent" />
+                        <span>{s.totalTurns} {s.totalTurns === 1 ? 'turn' : 'turns'}</span>
                       </span>
                     </div>
                   </div>
@@ -533,21 +707,88 @@ export default function ConversationHistory({
             )}
           </div>
 
+          {/* Sessions Server-Side Pagination Controls Footer */}
+          {totalPages > 1 && (
+            <div className="px-3 py-2 border-t border-iso-border bg-iso-bgSecondary/40 flex items-center justify-between text-xs shrink-0 select-none">
+              <span className="text-[10px] font-mono text-iso-textMuted">
+                Page <strong className="text-iso-primary">{currentPage}</strong> of <strong>{totalPages}</strong> ({totalSessionsCount} total)
+              </span>
+
+              <div className="flex items-center gap-1">
+                {/* First Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage <= 1 || loadingSessions}
+                  className="p-1 rounded-sm bg-iso-cardBg border border-iso-border hover:bg-iso-bg disabled:opacity-40 disabled:pointer-events-none text-iso-text transition-colors cursor-pointer"
+                  title="First Page"
+                >
+                  <ChevronsLeft size={13} />
+                </button>
+
+                {/* Prev Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage <= 1 || loadingSessions}
+                  className="p-1 rounded-sm bg-iso-cardBg border border-iso-border hover:bg-iso-bg disabled:opacity-40 disabled:pointer-events-none text-iso-text transition-colors cursor-pointer"
+                  title="Previous Page"
+                >
+                  <ChevronLeft size={13} />
+                </button>
+
+                {/* Next Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage >= totalPages || loadingSessions}
+                  className="p-1 rounded-sm bg-iso-cardBg border border-iso-border hover:bg-iso-bg disabled:opacity-40 disabled:pointer-events-none text-iso-text transition-colors cursor-pointer"
+                  title="Next Page"
+                >
+                  <ChevronRight size={13} />
+                </button>
+
+                {/* Last Page */}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage >= totalPages || loadingSessions}
+                  className="p-1 rounded-sm bg-iso-cardBg border border-iso-border hover:bg-iso-bg disabled:opacity-40 disabled:pointer-events-none text-iso-text transition-colors cursor-pointer"
+                  title="Last Page"
+                >
+                  <ChevronsRight size={13} />
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* Right Pane: Thread Viewer (7 Cols) */}
-        <div className="lg:col-span-7 bg-iso-cardBg border border-iso-border rounded-lg shadow-sm flex flex-col h-[580px] overflow-hidden">
+        <div className="lg:col-span-7 bg-iso-cardBg border border-iso-border rounded-sm shadow-xs flex flex-col h-full min-h-0 overflow-hidden">
           
           {currentActiveSession ? (
             <>
               {/* Thread Header */}
-              <div className="px-4 py-3 border-b border-iso-border bg-iso-bgSecondary flex flex-wrap items-center justify-between gap-2">
+              <div className="px-4 py-3 border-b border-iso-border bg-iso-bgSecondary/60 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-iso-primary font-mono">{currentActiveSession.sessionId}</span>
-                    <span className="text-[10px] font-mono text-iso-textMuted">({currentActiveSession.tenantId} / {currentActiveSession.botId})</span>
+                    <span className="text-xs font-bold text-iso-primary font-mono select-all">
+                      {currentActiveSession.sessionId}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopySessionId(currentActiveSession.sessionId)}
+                      className="p-1 text-iso-textMuted hover:text-iso-primary rounded hover:bg-iso-cardBg transition-colors cursor-pointer"
+                      title="Copy Session ID"
+                    >
+                      {copiedSessionId ? <Check size={11} className="text-emerald-600" /> : <Copy size={11} />}
+                    </button>
+                    <span className="text-[10px] font-mono text-iso-textMuted">
+                      ({currentActiveSession.tenantId} / {currentActiveSession.botId})
+                    </span>
                   </div>
-                  <span className="text-[10px] font-mono text-iso-textMuted">
+                  <span className="text-[10px] font-mono text-iso-textMuted mt-0.5">
                     Started: {new Date(currentActiveSession.sessionStartAt).toLocaleString()}
                     {currentActiveSession.sessionEndAt && ` • Ended: ${new Date(currentActiveSession.sessionEndAt).toLocaleTimeString()}`}
                   </span>
@@ -556,16 +797,16 @@ export default function ConversationHistory({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleExportTranscript}
-                    className="px-2.5 py-1 bg-iso-cardBg border border-iso-border hover:bg-iso-bg rounded text-iso-text text-xs flex items-center gap-1 shadow-2xs cursor-pointer"
+                    className="px-2.5 py-1 bg-iso-cardBg border border-iso-border hover:bg-iso-bg rounded-sm text-iso-text text-xs flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
                     title="Export Transcript as Text"
                   >
-                    <Download size={12} />
-                    <span className="text-[11px] font-mono">Export</span>
+                    <Download size={12} className="text-iso-accent" />
+                    <span className="text-[11px] font-mono font-medium">Export</span>
                   </button>
 
                   <button
                     onClick={() => handleDeleteSession(currentActiveSession.sessionId)}
-                    className="p-1.5 text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 rounded transition-all cursor-pointer"
+                    className="p-1.5 text-iso-textMuted hover:text-iso-error hover:bg-iso-errorBg border border-transparent hover:border-iso-error/20 rounded-sm transition-all cursor-pointer"
                     title="Delete Session"
                   >
                     <Trash2 size={13} />
@@ -574,14 +815,14 @@ export default function ConversationHistory({
               </div>
 
               {/* Messages Stream */}
-              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs bg-iso-bg/40">
+              <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 text-xs bg-iso-bg/50">
                 {loadingMessages ? (
-                  <div className="p-8 text-center text-iso-textMuted text-xs flex flex-col items-center gap-2">
-                    <RefreshCw size={16} className="animate-spin text-iso-accent" />
-                    <span>Loading messages thread...</span>
+                  <div className="p-10 text-center text-iso-textMuted text-xs flex flex-col items-center justify-center gap-2 h-full">
+                    <RefreshCw size={18} className="animate-spin text-iso-accent" />
+                    <span className="font-mono text-[11px]">Loading messages thread...</span>
                   </div>
                 ) : sessionMessages.length === 0 ? (
-                  <div className="p-8 text-center text-iso-textMuted text-xs">
+                  <div className="p-10 text-center text-iso-textMuted text-xs font-mono">
                     No messages recorded in this session.
                   </div>
                 ) : (
@@ -590,11 +831,11 @@ export default function ConversationHistory({
                       
                       {/* User Message */}
                       <div className="flex items-end gap-2 flex-row-reverse self-end max-w-[85%]">
-                        <div className="w-6 h-6 rounded-full bg-iso-primary flex items-center justify-center shrink-0 text-white shadow-2xs">
+                        <div className="w-6 h-6 rounded-sm bg-iso-primary flex items-center justify-center shrink-0 text-white shadow-xs">
                           <User size={13} />
                         </div>
                         <div className="flex flex-col items-end">
-                          <div className="bg-iso-primary text-white font-medium rounded-2xl rounded-br-xs p-3 shadow-2xs text-xs">
+                          <div className="bg-iso-primary text-white font-medium rounded-md rounded-br-xs px-3.5 py-2.5 shadow-xs text-xs">
                             {msg.query}
                           </div>
                           <span className="text-[9px] font-mono text-iso-textMuted mt-1 px-1">
@@ -604,11 +845,11 @@ export default function ConversationHistory({
                       </div>
 
                       {/* Bot Message */}
-                      <div className="flex items-start gap-2 flex-row self-start max-w-[85%]">
-                        <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center shrink-0 text-white shadow-2xs mt-1">
+                      <div className="flex items-start gap-2 flex-row self-start max-w-[88%]">
+                        <div className="w-6 h-6 rounded-sm bg-iso-accent flex items-center justify-center shrink-0 text-iso-primary shadow-xs mt-1 font-bold">
                           <Bot size={13} />
                         </div>
-                        <div className="flex-1 bg-iso-cardBg border border-iso-border text-iso-text rounded-2xl rounded-bl-xs p-3 shadow-2xs text-xs leading-relaxed">
+                        <div className="flex-1 bg-iso-cardBg border border-iso-border text-iso-text rounded-md rounded-bl-xs p-3.5 shadow-xs text-xs leading-relaxed">
                           <div 
                             className="prose prose-sm max-w-none text-xs leading-relaxed"
                             dangerouslySetInnerHTML={{ __html: renderFormattedMarkdown(msg.answer) }}
@@ -616,7 +857,7 @@ export default function ConversationHistory({
 
                           {/* Attached Form Data & Rating Banner */}
                           {msg.formData && (
-                            <div className="mt-3 p-2.5 bg-amber-50/80 border border-amber-200 rounded text-[11px] flex flex-col gap-1.5 text-amber-950">
+                            <div className="mt-3 p-2.5 bg-amber-50/90 border border-amber-200 rounded-sm text-[11px] flex flex-col gap-1.5 text-amber-950">
                               <div className="flex items-center justify-between font-bold border-b border-amber-200/80 pb-1">
                                 <span className="flex items-center gap-1 text-amber-900">
                                   <span>📋 End Chat Form &amp; Survey</span>
@@ -646,7 +887,7 @@ export default function ConversationHistory({
                             
                             {/* Thumbs Up / Down Feedback Badge */}
                             {(msg.userFeedback || msg.feedbackType) && (
-                              <span className={`px-2 py-0.5 rounded-full border font-bold flex items-center gap-1 shadow-2xs ${
+                              <span className={`px-2 py-0.5 rounded-xs border font-bold flex items-center gap-1 shadow-2xs ${
                                 (msg.userFeedback === 'like' || msg.feedbackType === 'like')
                                   ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                                   : 'bg-rose-50 text-rose-700 border-rose-300'
@@ -666,7 +907,7 @@ export default function ConversationHistory({
                             )}
 
                             {msg.intent && (
-                              <span className={`px-1.5 py-0.2 rounded border font-bold ${
+                              <span className={`px-1.5 py-0.2 rounded-xs border font-bold ${
                                 msg.intent === 'smalltalk' ? 'bg-amber-50 text-amber-800 border-amber-200' :
                                 msg.intent === 'ambiguous' ? 'bg-purple-50 text-purple-800 border-purple-200' :
                                 'bg-blue-50 text-blue-800 border-blue-200'
@@ -715,9 +956,12 @@ export default function ConversationHistory({
               </div>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-iso-textMuted text-xs gap-3">
-              <History size={32} className="opacity-30" />
-              <span>Select a conversation session from the left to view the complete chat transcript.</span>
+            <div className="flex-1 flex flex-col items-center justify-center p-10 text-center text-iso-textMuted text-xs gap-3">
+              <History size={36} className="text-iso-textMuted/30" />
+              <span className="font-serif font-bold text-iso-primary text-sm">Select a Conversation</span>
+              <span className="text-xs text-iso-textMuted max-w-xs">
+                Choose a session from the list on the left to inspect full dialogue turns, latency telemetry, and retrieved knowledge chunks.
+              </span>
             </div>
           )}
 

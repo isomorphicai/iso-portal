@@ -6,6 +6,7 @@ import {
   FileText, ExternalLink, Bot, Building2, ListFilter, Send
 } from 'lucide-react';
 import ConfirmModal from '../../components/ConfirmModal';
+import CustomDropdown from '../../components/CustomDropdown';
 
 export default function Ingestion({ 
   tenants = [], 
@@ -370,39 +371,34 @@ export default function Ingestion({
         </div>
 
         {/* Tenant & Bot Selector Dropdowns strictly showing tenantId and botId */}
-        <div className="flex items-center gap-3 p-2 bg-iso-cardBg border border-iso-border rounded-sm shadow-xs">
-          <div className="flex items-center gap-1.5">
-            <Building2 size={14} className="text-iso-accent" />
-            <select
-              value={activeTenantId}
-              onChange={(e) => setActiveTenantId(e.target.value)}
-              className="bg-iso-bg border border-iso-border rounded px-2.5 py-1 text-xs outline-none font-bold text-iso-primary cursor-pointer font-mono"
-            >
-              {tenants.map(t => {
-                const tId = t.tenantId || t.code;
-                return <option key={tId} value={tId}>{t.name || t.tenantName} ({tId})</option>;
-              })}
-            </select>
-          </div>
+        <div className="flex items-center gap-2.5">
+          <CustomDropdown
+            value={activeTenantId}
+            onChange={(val) => {
+              setActiveTenantId(val);
+              setActiveBotId('');
+            }}
+            options={tenants.map(t => ({
+              value: t.tenantId || t.code,
+              label: t.name || t.tenantName || t.tenantId,
+              badge: t.tenantId || t.code
+            }))}
+            icon={Building2}
+            placeholder="Organization..."
+          />
 
-          <div className="flex items-center gap-1.5">
-            <Bot size={14} className="text-purple-600" />
-            <select
-              value={activeBotId}
-              onChange={(e) => setActiveBotId(e.target.value)}
-              disabled={loadingBots || availableBots.length === 0}
-              className="bg-iso-bg border border-iso-border rounded px-2.5 py-1 text-xs outline-none font-bold text-iso-primary cursor-pointer font-mono disabled:opacity-50"
-            >
-              {availableBots.length === 0 ? (
-                <option value="">No bots available</option>
-              ) : (
-                availableBots.map(b => {
-                  const bId = b.botId || b.code;
-                  return <option key={bId} value={bId}>{b.botName || b.name} ({bId})</option>;
-                })
-              )}
-            </select>
-          </div>
+          <CustomDropdown
+            value={activeBotId}
+            onChange={setActiveBotId}
+            options={availableBots.map(b => ({
+              value: b.botId || b.code,
+              label: b.botName || b.name || b.botId,
+              badge: b.botId || b.code
+            }))}
+            disabled={loadingBots || availableBots.length === 0}
+            icon={Bot}
+            placeholder={availableBots.length === 0 ? "No bots" : "Chatbot..."}
+          />
         </div>
       </div>
 
