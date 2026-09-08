@@ -459,6 +459,8 @@ export default function TenantsList({
                     </div>
                   </th>
 
+                  <th className="py-2.5 text-center">Bot Mode</th>
+
                   <th className="py-2.5 text-center">Theme</th>
 
                   <th 
@@ -487,13 +489,14 @@ export default function TenantsList({
               <tbody>
                 {filteredAndSortedTenants.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="py-10 text-center text-iso-textMuted italic bg-iso-bgSecondary/10">
+                    <td colSpan="10" className="py-10 text-center text-iso-textMuted italic bg-iso-bgSecondary/10">
                       {tenantSearch ? "No tenants match your search query." : "No tenants found."}
                     </td>
                   </tr>
                 ) : (
                   paginatedTenants.map(t => {
                     const themeColor = t.tenantConfig?.ButtonandLeftBarColor || "#00306D";
+                    const isVoiceTenant = t.tenantConfig?.voicebot === true || t.tenantConfig?.isVoicebot === true || t.tenantConfig?.botType === "voicebot";
                     return (
                       <tr key={t._id} className="border-b border-iso-border/40 hover:bg-iso-bgSecondary/20 transition-colors">
                         
@@ -518,6 +521,18 @@ export default function TenantsList({
                         <td className="py-3 font-mono text-[11px] text-iso-textMuted flex items-center gap-1">
                           <Globe size={11} className="text-iso-textMuted/60" />
                           <span>{t.tenantConfig?.timeZone || "UTC"}</span>
+                        </td>
+
+                        <td className="py-3 text-center">
+                          {isVoiceTenant ? (
+                            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-1 shadow-2xs">
+                              🎙️ Voicebot
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center gap-1 shadow-2xs">
+                              💬 Chatbot
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-3 text-center">
@@ -688,6 +703,8 @@ export default function TenantsList({
                     </div>
                   </th>
 
+                  <th className="py-2.5 text-center">Type</th>
+
                   <th className="py-2.5 text-center">Theme</th>
 
                   <th 
@@ -726,7 +743,7 @@ export default function TenantsList({
               <tbody>
                 {isBotsLoading ? (
                   <tr>
-                    <td colSpan="8" className="py-12 text-center text-iso-textMuted">
+                    <td colSpan="9" className="py-12 text-center text-iso-textMuted">
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 size={16} className="animate-spin text-iso-accent" />
                         <span className="font-mono text-xs">Loading chatbots...</span>
@@ -735,7 +752,7 @@ export default function TenantsList({
                   </tr>
                 ) : filteredAndSortedBots.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="py-10 text-center text-iso-textMuted italic bg-iso-bgSecondary/10">
+                    <td colSpan="9" className="py-10 text-center text-iso-textMuted italic bg-iso-bgSecondary/10">
                       {botSearch ? "No chatbots match your search query." : "No chatbots configured for this tenant. Click 'Create Chatbot' to add one."}
                     </td>
                   </tr>
@@ -743,6 +760,7 @@ export default function TenantsList({
                   paginatedBots.map(b => {
                     const botTheme = b.botUIConfigs?.botThemeColor || "#00306D";
                     const formsCount = (b.customForms || []).length;
+                    const isVoiceBot = b.voicebot === true || b.isVoicebot === true || b.botType === "voicebot" || b.botUIConfigs?.botMode === "voice";
                     return (
                       <tr key={b._id} className="border-b border-iso-border/40 hover:bg-iso-bgSecondary/20 transition-colors">
                         
@@ -760,6 +778,18 @@ export default function TenantsList({
 
                         <td className="py-3 font-mono text-xs text-iso-accent font-semibold">{b.botId || b.code}</td>
                         <td className="py-3 text-iso-text text-xs max-w-[150px] truncate">{b.botUIConfigs?.botHeaderText || "-"}</td>
+
+                        <td className="py-3 text-center">
+                          {isVoiceBot ? (
+                            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-purple-50 text-purple-700 border border-purple-200 inline-flex items-center gap-1 shadow-2xs">
+                              🎙️ Voicebot
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200 inline-flex items-center gap-1 shadow-2xs">
+                              💬 Chatbot
+                            </span>
+                          )}
+                        </td>
 
                         <td className="py-3 text-center">
                           <div className="flex items-center justify-center gap-1">

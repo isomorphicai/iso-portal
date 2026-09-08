@@ -7,6 +7,12 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_UI_CONFIGS = {
+  botMode: 'chat',
+  botType: 'chatbot',
+  isChatbot: true,
+  isVoicebot: false,
+  chatbot: true,
+  voicebot: false,
   botThemeColor: '#00306D',
   botChatStartImage: 'https://bbh-product-bucket.s3.us-east-2.amazonaws.com/a04ac944-0efc-4f92-84cd-9463c94f0505.png',
   botResponseBackgroundColor: '#EFEFEF',
@@ -47,6 +53,11 @@ export default function Overview({ selectedTenant, selectedBot, setSelectedBot, 
     name: '',
     code: '',
     description: '',
+    botType: 'chatbot',
+    isChatbot: true,
+    isVoicebot: false,
+    chatbot: true,
+    voicebot: false,
     model: 'gpt-4-turbo',
     temperature: 0.7,
     systemPrompt: '',
@@ -79,6 +90,7 @@ export default function Overview({ selectedTenant, selectedBot, setSelectedBot, 
   // Sync form state when selectedBot changes
   useEffect(() => {
     if (selectedBot) {
+      const isVoice = selectedBot.voicebot === true || selectedBot.isVoicebot === true || selectedBot.botType === 'voicebot' || selectedBot.botUIConfigs?.botMode === 'voice';
       const greetings = Array.isArray(selectedBot.greetingMessage)
         ? selectedBot.greetingMessage
         : (selectedBot.greetingMessage ? [selectedBot.greetingMessage] : ['Hi! How can I assist you today?']);
@@ -89,6 +101,12 @@ export default function Overview({ selectedTenant, selectedBot, setSelectedBot, 
 
       const initialUI = {
         ...DEFAULT_UI_CONFIGS,
+        botType: isVoice ? 'voicebot' : 'chatbot',
+        isChatbot: !isVoice,
+        isVoicebot: isVoice,
+        chatbot: !isVoice,
+        voicebot: isVoice,
+        botMode: isVoice ? 'voice' : 'chat',
         botHeaderText: selectedBot.name || 'ISO AI Assistant',
         ...(selectedBot.botUIConfigs || {})
       };
@@ -100,6 +118,11 @@ export default function Overview({ selectedTenant, selectedBot, setSelectedBot, 
         code: selectedBot.code || '',
         botId: selectedBot.code || '',
         description: selectedBot.description || '',
+        botType: isVoice ? 'voicebot' : 'chatbot',
+        isChatbot: !isVoice,
+        isVoicebot: isVoice,
+        chatbot: !isVoice,
+        voicebot: isVoice,
         model: selectedBot.model || 'gpt-4-turbo',
         temperature: selectedBot.temperature !== undefined ? selectedBot.temperature : 0.7,
         systemPrompt: selectedBot.systemPrompt || '',
@@ -147,6 +170,27 @@ export default function Overview({ selectedTenant, selectedBot, setSelectedBot, 
   // ----------------------------------------------------
   // Form Field Update Handlers
   // ----------------------------------------------------
+  const handleBotTypeChange = (type) => {
+    const isVoice = type === 'voicebot';
+    setBotForm(prev => ({
+      ...prev,
+      botType: isVoice ? 'voicebot' : 'chatbot',
+      isChatbot: !isVoice,
+      isVoicebot: isVoice,
+      chatbot: !isVoice,
+      voicebot: isVoice,
+      botUIConfigs: {
+        ...prev.botUIConfigs,
+        botType: isVoice ? 'voicebot' : 'chatbot',
+        isChatbot: !isVoice,
+        isVoicebot: isVoice,
+        chatbot: !isVoice,
+        voicebot: isVoice,
+        botMode: isVoice ? 'voice' : 'chat'
+      }
+    }));
+  };
+
   const updateUIConfig = (key, value) => {
     setBotForm(prev => ({
       ...prev,
@@ -610,6 +654,66 @@ export default function Overview({ selectedTenant, selectedBot, setSelectedBot, 
           {/* Tab 2: Widget UI & Theme Customization */}
           {activeTab === 'theme' && (
             <div className="p-6 flex flex-col gap-4">
+              <div className="p-3.5 bg-iso-bgSecondary/30 border border-iso-border rounded-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block font-semibold">
+                      Assistant Modality (Chatbot vs Voicebot)
+                    </label>
+                    <p className="text-[11px] text-iso-textMuted">Select whether this bot runs as a text Chatbot or speech Voicebot.</p>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-sm border bg-iso-cardBg text-iso-primary border-iso-border">
+                    {botForm.voicebot || botForm.botType === 'voicebot' ? '🎙️ voicebot: true' : '💬 chatbot: true'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => handleBotTypeChange('chatbot')}
+                    className={`px-3.5 py-3 rounded-sm border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      !(botForm.voicebot || botForm.botType === 'voicebot')
+                        ? 'border-iso-accent bg-iso-accent/10 text-iso-primary shadow-xs ring-1 ring-iso-accent/40'
+                        : 'border-iso-border bg-iso-cardBg text-iso-textMuted hover:border-iso-textMuted'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs flex items-center gap-1.5">
+                        💬 Text Chatbot
+                      </span>
+                      {!(botForm.voicebot || botForm.botType === 'voicebot') ? (
+                        <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-mono rounded-xs font-bold">SELECTED (chatbot: true)</span>
+                      ) : (
+                        <span className="text-[10px] font-mono text-iso-textMuted">Click to select</span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-iso-textMuted">Standard interactive text chat window with forms and greetings</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleBotTypeChange('voicebot')}
+                    className={`px-3.5 py-3 rounded-sm border text-left flex flex-col gap-1 transition-all cursor-pointer ${
+                      (botForm.voicebot || botForm.botType === 'voicebot')
+                        ? 'border-iso-accent bg-iso-accent/10 text-iso-primary shadow-xs ring-1 ring-iso-accent/40'
+                        : 'border-iso-border bg-iso-cardBg text-iso-textMuted hover:border-iso-textMuted'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs flex items-center gap-1.5">
+                        🎙️ Voice AI Bot
+                      </span>
+                      {(botForm.voicebot || botForm.botType === 'voicebot') ? (
+                        <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-mono rounded-xs font-bold">SELECTED (voicebot: true)</span>
+                      ) : (
+                        <span className="text-[10px] font-mono text-iso-textMuted">Click to select</span>
+                      )}
+                    </div>
+                    <span className="text-[10px] text-iso-textMuted">Speech-first AI conversational assistant with voice dialogue</span>
+                  </button>
+                </div>
+              </div>
+
               <span className="text-[10px] font-mono font-bold text-iso-accent uppercase tracking-wider">
                 Visual Branding & Color Scheme
               </span>
