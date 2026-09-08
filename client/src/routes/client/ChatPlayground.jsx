@@ -144,7 +144,23 @@ export default function ChatPlayground({
   const [isListening, setIsListening] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewMode, setViewMode] = useState('chat'); // 'chat' | 'voice'
+  const [voiceTranscript, setVoiceTranscript] = useState('');
   const chatEndRef = useRef(null);
+
+  const currentBot = availableBots.find(b => (b.botId === activeBotId || b.code === activeBotId)) || selectedBot;
+  const currentTenant = tenantList.find(t => (t.tenantId === activeTenantId || t.code === activeTenantId)) || selectedTenant;
+
+  const isVoiceBotConfigured = currentBot?.voicebot === true || currentBot?.isVoicebot === true || currentBot?.botType === 'voicebot' || currentBot?.botUIConfigs?.botMode === 'voice' || currentTenant?.tenantConfig?.voicebot === true;
+
+  // Auto-sync viewMode based on bot's configured modality
+  useEffect(() => {
+    if (isVoiceBotConfigured) {
+      setViewMode('voice');
+    } else {
+      setViewMode('chat');
+    }
+  }, [activeBotId, isVoiceBotConfigured]);
 
   // Fetch tenants
   useEffect(() => {
@@ -213,11 +229,12 @@ export default function ChatPlayground({
   useEffect(() => {
     if (activeBotId && activeTenantId) {
       const curBot = availableBots.find(b => (b.botId === activeBotId || b.code === activeBotId));
+      const greetings = Array.isArray(curBot?.greetingMessage) ? curBot.greetingMessage[0] : (curBot?.greetingMessage || `Hello! I am ${curBot?.botName || curBot?.name || 'the AI Assistant'}. How can I help you today?`);
       setMessages([
         {
           id: 'welcome',
           role: 'assistant',
-          content: `Hello! I am ${curBot?.botName || curBot?.name || 'the AI Assistant'}. How can I help you today?`,
+          content: greetings,
           timestamp: new Date()
         }
       ]);
@@ -227,6 +244,45 @@ export default function ChatPlayground({
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
+
+  const handleSpeak = (text, id) => {
+    if (!('speechSynthesis' in window)) return;
+    if (window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      if (speakingId === id) {
+        setSpeakingId(null);
+        return;
+      }
+    }
+    const clean = text.replace(/<[^>]*>?/gm, '').replace(/[*_#`~]/g, '');
+    const u = new SpeechSynthesisUtterance(clean);
+    u.rate = 1.0;
+    u.pitch = 1.0;
+    setSpeakingId(id);
+    u.onend = () => setSpeakingId(null);
+    u.onerror = () => setSpeakingId(null);
+    window.speechSynthesis.speak(u);
+  };
+
+  const streamResponse = (fullText, messageId, onComplete) => {
+    const words = fullText.split(' ');
+    let currentIdx = 0;
+    
+    // Initialize empty message
+    setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content: '', isStreaming: true } : m));
+
+    const interval = setInterval(() => {
+      currentIdx++;
+      const partial = words.slice(0, currentIdx).join(' ');
+      setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content: partial } : m));
+      
+      if (currentIdx >= words.length) {
+        clearInterval(interval);
+        setMessages(prev => prev.map(m => m.id === messageId ? { ...m, content: fullText, isStreaming: false } : m));
+        if (onComplete) onComplete();
+      }
+    }, 28);
+  };
 
   const executeQuery = async (queryText) => {
     if (!queryText.trim() || loading || !activeBotId || !activeTenantId) return;
@@ -242,6 +298,7 @@ export default function ChatPlayground({
 
     setMessages(prev => [...prev, userMsg]);
     setInput('');
+    setVoiceTranscript('');
     setLoading(true);
 
     try {
@@ -258,16 +315,29 @@ export default function ChatPlayground({
       const data = await res.json();
 
       if (res.ok) {
+        const replyText = data.response || data.reply || data.message || 'No response';
+        const replyId = Date.now().toString() + '-reply';
+        
+        // Add placeholder message for streaming
         setMessages(prev => [...prev, {
-          id: Date.now().toString() + '-reply',
+          id: replyId,
           role: 'assistant',
-          content: data.response || data.reply || data.message || 'No response',
+          content: '',
+          isStreaming: true,
           intent: data.intent,
           sources: data.sources || [],
           retrievedChunksCount: data.retrievedChunksCount || 0,
           latencyMs: data.latencyMs,
           timestamp: new Date(data.timestamp || Date.now())
         }]);
+
+        // If voicebot or in voice view, speak response automatically
+        if (viewMode === 'voice' || isVoiceBotConfigured) {
+          handleSpeak(replyText, replyId);
+        }
+
+        // Stream the text response word-by-word
+        streamResponse(replyText, replyId);
       } else {
         if (showToast) showToast('System response failed.', 'error');
       }
@@ -289,46 +359,70 @@ export default function ChatPlayground({
     setTimeout(() => setCopiedId(null), 1500);
   };
 
-  const handleSpeak = (text, id) => {
-    if (!('speechSynthesis' in window)) return;
-    if (window.speechSynthesis.speaking) {
-      window.speechSynthesis.cancel();
-      if (speakingId === id) {
-        setSpeakingId(null);
-        return;
-      }
-    }
-    const clean = text.replace(/<[^>]*>?/gm, '').replace(/[*_#`~]/g, '');
-    const u = new SpeechSynthesisUtterance(clean);
-    setSpeakingId(id);
-    u.onend = () => setSpeakingId(null);
-    u.onerror = () => setSpeakingId(null);
-    window.speechSynthesis.speak(u);
-  };
-
   const toggleVoiceInput = () => {
     const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRec) {
-      if (showToast) showToast('Voice recognition is not supported in this browser.', 'warning');
+      if (showToast) showToast('Voice speech recognition is not supported in this browser.', 'warning');
       return;
     }
-    const rec = new SpeechRec();
-    rec.continuous = false;
-    rec.lang = 'en-US';
-    rec.onstart = () => setIsListening(true);
-    rec.onresult = (e) => {
-      setInput(e.results[0][0].transcript);
-    };
-    rec.onend = () => setIsListening(false);
-    rec.onerror = () => setIsListening(false);
-    rec.start();
+
+    if (isListening) {
+      setIsListening(false);
+      return;
+    }
+
+    // Stop speech synthesis if speaking
+    if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel();
+      setSpeakingId(null);
+    }
+
+    try {
+      const rec = new SpeechRec();
+      rec.continuous = false;
+      rec.interimResults = true;
+      rec.lang = 'en-US';
+
+      rec.onstart = () => {
+        setIsListening(true);
+        setVoiceTranscript('Listening...');
+      };
+
+      rec.onresult = (e) => {
+        const current = Array.from(e.results)
+          .map(result => result[0].transcript)
+          .join('');
+        setVoiceTranscript(current);
+        setInput(current);
+
+        if (e.results[0].isFinal) {
+          setIsListening(false);
+          executeQuery(current);
+        }
+      };
+
+      rec.onend = () => {
+        setIsListening(false);
+      };
+
+      rec.onerror = (err) => {
+        setIsListening(false);
+        if (showToast && err.error !== 'no-speech') {
+          showToast(`Microphone error: ${err.error}`, 'warning');
+        }
+      };
+
+      rec.start();
+    } catch (e) {
+      setIsListening(false);
+    }
   };
 
   const downloadTranscript = () => {
     let md = `# Conversation Transcript\n\n`;
     md += `**Date:** ${new Date().toLocaleString()}\n`;
     md += `**Tenant:** ${activeTenantId}\n`;
-    md += `**Bot:** ${activeBotId}\n\n---\n\n`;
+    md += `**Bot:** ${activeBotId} (${isVoiceBotConfigured ? 'Voicebot' : 'Chatbot'})\n\n---\n\n`;
 
     messages.forEach(m => {
       md += `**[${new Date(m.timestamp).toLocaleTimeString()}] ${m.role === 'user' ? 'User' : 'Assistant'}:**\n${m.content}\n\n`;
@@ -351,6 +445,20 @@ export default function ChatPlayground({
     return m.content.toLowerCase().includes(searchQuery.trim().toLowerCase());
   });
 
+  // Extract all MongoDB botUIConfigs theming settings
+  const uiConfigs = currentBot?.botUIConfigs || {};
+  const themeColor = uiConfigs.botThemeColor || '#00306D';
+  const bgColor = uiConfigs.bgColor || '#FFFFFF';
+  const botMsgBg = uiConfigs.botResponseBackgroundColor || '#FFFFFF';
+  const botMsgColor = uiConfigs.botResponseFontColor || '#1E293B';
+  const userMsgBg = uiConfigs.userQueryBackgroundColor || themeColor || '#00306D';
+  const userMsgColor = uiConfigs.userQueryFontColor || '#FFFFFF';
+  const botHeader = uiConfigs.botHeaderText || currentBot?.botName || currentBot?.name || 'ISO AI Assistant';
+  const botStatus = uiConfigs.botStatusText || (currentBot?.botActive !== false ? 'Online' : 'Offline');
+  const botLogo = uiConfigs.logoUrl || uiConfigs.botChatStartImage || currentBot?.botChatStartImage || currentBot?.botLogo;
+  const poweredBy = uiConfigs.poweredBy || 'AI powered by <span>Isomorphic</span>';
+  const quickOptions = uiConfigs.starterQuestions || uiConfigs.quickReplies || currentBot?.quickReplies || STARTER_PROMPTS.map(p => p.query);
+
   return (
     <div className="w-full h-full flex flex-col gap-3 min-h-0 overflow-hidden">
       
@@ -358,13 +466,15 @@ export default function ChatPlayground({
       <div className="border-b border-iso-border pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-iso-primary">Chatbot Playground</h1>
+            <h1 className="text-xl font-bold tracking-tight text-iso-primary">
+              {isVoiceBotConfigured ? 'Voicebot Playground' : 'Chatbot Playground'}
+            </h1>
             <span className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-mono font-medium">
-              RAG Engine
+              RAG Pipeline
             </span>
           </div>
           <p className="text-xs text-iso-textMuted mt-0.5">
-            Test and inspect vector retrieval, prompt grounding, and generated answers.
+            Test and inspect vector retrieval, prompt grounding, and streaming voice generation.
           </p>
         </div>
 
@@ -405,36 +515,92 @@ export default function ChatPlayground({
         </div>
       </div>
 
-      {/* Main Chat Interface */}
-      <div className="bg-white border border-iso-border rounded-lg flex flex-col flex-1 min-h-0 overflow-hidden shadow-2xs">
+      {/* Main Container - Themed with Mongo Atlas configs */}
+      <div 
+        className="border border-iso-border rounded-lg flex flex-col flex-1 min-h-0 overflow-hidden shadow-2xs"
+        style={{ backgroundColor: bgColor }}
+      >
         
-        {/* Chat Toolbar Header */}
-        <div className="px-4 py-2 border-b border-iso-border bg-slate-50/70 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span className="text-xs font-semibold text-iso-primary">
-              {activeBotId || 'Assistant'}
-            </span>
-            <span className="text-[11px] text-iso-textMuted">• {activeIndexName}</span>
+        {/* Chat Toolbar Header - Themed with botThemeColor */}
+        <div 
+          className="px-4 py-2.5 border-b border-iso-border flex items-center justify-between shrink-0"
+          style={{ backgroundColor: themeColor, color: '#FFFFFF' }}
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {botLogo ? (
+                <img src={botLogo} alt="Logo" className="w-6 h-6 rounded-full object-cover border border-white/30" />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-xs">
+                  {viewMode === 'voice' ? '🎙️' : '💬'}
+                </div>
+              )}
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-white tracking-wide">
+                    {botHeader}
+                  </span>
+                  <span className={`w-2 h-2 rounded-full ${isListening ? 'bg-rose-400 animate-ping' : speakingId ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-400'}`} />
+                </div>
+                <div className="text-[10px] text-white/75 font-mono">
+                  {isListening ? 'Listening...' : speakingId ? 'Speaking AI voice...' : botStatus} • {activeBotId}
+                </div>
+              </div>
+            </div>
+
+            {/* Mode Switcher Tabs */}
+            <div className="flex items-center bg-black/25 p-0.5 rounded-lg text-[11px] font-medium ml-2">
+              <button
+                type="button"
+                onClick={() => setViewMode('chat')}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'chat'
+                    ? 'bg-white text-slate-900 shadow-xs font-semibold'
+                    : 'text-white/80 hover:text-white'
+                }`}
+              >
+                <MessageSquare size={12} />
+                <span>Chat UI</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('voice')}
+                className={`px-2.5 py-1 rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                  viewMode === 'voice'
+                    ? 'bg-white text-slate-900 shadow-xs font-semibold'
+                    : 'text-white/80 hover:text-white'
+                }`}
+              >
+                <Mic size={12} />
+                <span>Voice UI</span>
+                {isVoiceBotConfigured && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse"></span>
+                )}
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 text-white">
             <button
               onClick={() => setSearchOpen(!searchOpen)}
-              className={`p-1.5 rounded text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 cursor-pointer ${searchOpen ? 'bg-slate-200/70 text-slate-900' : ''}`}
+              className={`p-1.5 rounded text-xs text-white/80 hover:text-white hover:bg-white/15 cursor-pointer ${searchOpen ? 'bg-white/20 text-white' : ''}`}
               title="Search conversation"
             >
               <Search size={13} />
             </button>
             <button
               onClick={downloadTranscript}
-              className="p-1.5 rounded text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 cursor-pointer"
+              className="p-1.5 rounded text-xs text-white/80 hover:text-white hover:bg-white/15 cursor-pointer"
               title="Download transcript"
             >
               <Download size={13} />
             </button>
             <button
               onClick={() => {
+                if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+                setSpeakingId(null);
+                setIsListening(false);
+                setVoiceTranscript('');
                 setMessages([{
                   id: 'welcome',
                   role: 'assistant',
@@ -442,7 +608,7 @@ export default function ChatPlayground({
                   timestamp: new Date()
                 }]);
               }}
-              className="p-1.5 rounded text-xs text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 cursor-pointer"
+              className="p-1.5 rounded text-xs text-white/80 hover:text-white hover:bg-white/15 cursor-pointer"
               title="Reset conversation"
             >
               <RefreshCw size={12} />
@@ -470,45 +636,150 @@ export default function ChatPlayground({
           </div>
         )}
 
-        {/* Messages Stream */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 text-xs bg-slate-50/40 min-h-0">
+        {/* Voice Assistant Visualizer Banner (Shown in Voice Mode) */}
+        {viewMode === 'voice' && (
+          <div className="px-4 py-3 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white border-b border-slate-700/60 flex items-center justify-between shrink-0 shadow-inner">
+            <div className="flex items-center gap-3">
+              {/* Voice Orb Button */}
+              <button
+                type="button"
+                onClick={toggleVoiceInput}
+                disabled={loading}
+                title={isListening ? "Stop listening" : "Tap to speak"}
+                className={`w-11 h-11 rounded-full flex items-center justify-center transition-all transform active:scale-95 cursor-pointer shadow-md border-2 ${
+                  isListening
+                    ? 'bg-rose-600 border-rose-300 text-white animate-pulse shadow-rose-600/50'
+                    : speakingId
+                      ? 'bg-emerald-600 border-emerald-300 text-white animate-bounce shadow-emerald-600/50'
+                      : loading
+                        ? 'bg-amber-600 border-amber-300 text-white animate-spin'
+                        : 'bg-indigo-600 hover:bg-indigo-500 border-indigo-400 text-white shadow-indigo-600/40'
+                }`}
+              >
+                {loading ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : isListening ? (
+                  <Mic size={18} className="text-white" />
+                ) : speakingId ? (
+                  <Volume2 size={18} className="text-white" />
+                ) : (
+                  <Mic size={18} />
+                )}
+              </button>
+
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-100">
+                    {isListening 
+                      ? 'Listening to your voice...' 
+                      : loading 
+                        ? 'Analyzing knowledge base...' 
+                        : speakingId 
+                          ? 'Streaming AI voice answer...' 
+                          : 'Voice Assistant Ready'}
+                  </span>
+                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-mono ${
+                    isListening ? 'bg-rose-500/30 text-rose-300 border border-rose-500/40' : speakingId ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/40' : 'bg-slate-700 text-slate-300'
+                  }`}>
+                    {isListening ? '● LIVE REC' : speakingId ? '🔊 SPEAKING' : 'IDLE'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-slate-400 italic">
+                  {voiceTranscript ? `"${voiceTranscript}"` : 'Tap mic or click quick questions to speak'}
+                </div>
+              </div>
+            </div>
+
+            {/* Dynamic Equalizer Audio Waveform Bars */}
+            <div className="flex items-center gap-1 h-5">
+              {[35, 60, 90, 50, 80, 100, 45, 75, 40].map((h, i) => (
+                <span
+                  key={i}
+                  className={`w-1 rounded-full transition-all duration-150 ${
+                    isListening
+                      ? 'bg-rose-400'
+                      : speakingId
+                        ? 'bg-emerald-400'
+                        : loading
+                          ? 'bg-amber-400'
+                          : 'bg-slate-600 h-1'
+                  }`}
+                  style={{
+                    height: (isListening || speakingId) 
+                      ? `${Math.max(4, Math.sin(Date.now() / 150 + i) * h * 0.2)}px` 
+                      : '4px'
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Unified Messages Stream - Themed from MongoDB Atlas */}
+        <div 
+          className="flex-1 overflow-y-auto p-4 flex flex-col gap-3 text-xs min-h-0"
+          style={{ backgroundColor: bgColor }}
+        >
           {displayedMessages.map(msg => (
             <div 
               key={msg.id} 
               className={`flex flex-col gap-1 max-w-[85%] ${msg.role === 'user' ? 'self-end items-end' : 'self-start items-start'}`}
             >
               <div 
-                className={`p-3 leading-relaxed text-xs ${
-                  msg.role === 'user' 
-                    ? 'bg-iso-primary text-white rounded-xl rounded-tr-xs' 
-                    : 'bg-white border border-iso-border text-slate-800 rounded-xl rounded-tl-xs shadow-2xs'
-                }`}
+                className="p-3.5 leading-relaxed text-xs rounded-xl shadow-2xs transition-all border"
+                style={{
+                  backgroundColor: msg.role === 'user' ? userMsgBg : botMsgBg,
+                  color: msg.role === 'user' ? userMsgColor : botMsgColor,
+                  borderColor: msg.role === 'user' ? 'transparent' : '#E2E8F0',
+                  borderTopRightRadius: msg.role === 'user' ? '2px' : '12px',
+                  borderTopLeftRadius: msg.role === 'assistant' ? '2px' : '12px'
+                }}
               >
+                {/* Streaming with AI Voice Badge */}
+                {msg.role === 'assistant' && (msg.isStreaming || (speakingId === msg.id && viewMode === 'voice')) && (
+                  <div className="mb-2 pb-1.5 border-b border-slate-200/60 flex items-center justify-between text-[11px] text-indigo-700 font-semibold">
+                    <div className="flex items-center gap-1.5">
+                      <Volume2 size={13} className="animate-pulse text-indigo-600" />
+                      <span>Streaming with AI Voice...</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      <span className="w-1 h-3 bg-indigo-500 rounded-full animate-pulse" />
+                      <span className="w-1 h-4 bg-indigo-600 rounded-full animate-bounce" />
+                      <span className="w-1 h-2 bg-indigo-400 rounded-full animate-pulse" />
+                    </div>
+                  </div>
+                )}
+
                 {msg.role === 'user' ? (
-                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  <div className="whitespace-pre-wrap font-medium">{msg.content}</div>
                 ) : (
-                  <div 
-                    className="prose prose-sm max-w-none text-xs leading-relaxed"
-                    dangerouslySetInnerHTML={{ __html: renderFormattedMarkdown(msg.content) }}
-                  />
+                  <div>
+                    <div 
+                      className="prose prose-sm max-w-none text-xs leading-relaxed"
+                      dangerouslySetInnerHTML={{ __html: renderFormattedMarkdown(msg.content) }}
+                    />
+                    {msg.isStreaming && (
+                      <span className="inline-block w-1.5 h-3.5 ml-1 bg-indigo-600 animate-pulse align-middle" />
+                    )}
+                  </div>
                 )}
 
                 {/* Intent & Citations */}
-                {msg.role === 'assistant' && (msg.intent || (msg.sources && msg.sources.length > 0)) && (
-                  <div className="mt-2 pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2 text-[10px] font-mono">
+                {msg.role === 'assistant' && !msg.isStreaming && (msg.intent || (msg.sources && msg.sources.length > 0)) && (
+                  <div className="mt-2 pt-2 border-t border-slate-200/60 flex flex-wrap items-center gap-2 text-[10px] font-mono opacity-90">
                     {msg.intent && (
                       <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                         Intent: {msg.intent}
                       </span>
                     )}
                     {msg.retrievedChunksCount > 0 && (
-                      <span className="text-slate-400">
+                      <span className="text-slate-500">
                         {msg.retrievedChunksCount} chunk(s) • {msg.latencyMs}ms
                       </span>
                     )}
                     {msg.sources && msg.sources.length > 0 && (
                       <div className="flex items-center gap-1">
-                        <span className="text-slate-400">Sources:</span>
+                        <span className="text-slate-500">Sources:</span>
                         {msg.sources.map((src, i) => (
                           <a 
                             key={i} 
@@ -530,7 +801,7 @@ export default function ChatPlayground({
               {/* Message Footer Actions */}
               <div className="flex items-center gap-2 px-1 text-[10px] text-slate-400">
                 <span>{new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                {msg.role === 'assistant' && (
+                {msg.role === 'assistant' && !msg.isStreaming && (
                   <div className="flex items-center gap-1">
                     <button 
                       onClick={() => copyToClipboard(msg.content, msg.id)}
@@ -541,7 +812,7 @@ export default function ChatPlayground({
                     </button>
                     <button 
                       onClick={() => handleSpeak(msg.content, msg.id)}
-                      className={`hover:text-slate-700 cursor-pointer p-0.5 ${speakingId === msg.id ? 'text-sky-600' : ''}`}
+                      className={`hover:text-slate-700 cursor-pointer p-0.5 ${speakingId === msg.id ? 'text-indigo-600 font-semibold' : ''}`}
                       title="Read aloud"
                     >
                       <Volume2 size={11} />
@@ -553,55 +824,69 @@ export default function ChatPlayground({
           ))}
 
           {loading && (
-            <div className="flex items-center gap-2 text-slate-400 text-xs p-2">
+            <div className="flex items-center gap-2 text-slate-500 text-xs p-2">
               <Loader2 size={13} className="animate-spin text-iso-primary" />
-              <span className="text-[11px]">Searching knowledge base...</span>
+              <span className="text-[11px] font-medium">
+                {viewMode === 'voice' ? 'Synthesizing knowledge & AI voice...' : 'Searching knowledge base...'}
+              </span>
             </div>
           )}
           <div ref={chatEndRef} />
         </div>
 
-        {/* Starter Prompts */}
+        {/* Starter Prompts - Themed */}
         {messages.length <= 2 && (
-          <div className="px-4 py-2 bg-white border-t border-iso-border/70 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
-            <span className="text-[10px] font-mono text-slate-400 shrink-0">Try:</span>
-            {STARTER_PROMPTS.map((p, idx) => (
-              <button
-                key={idx}
-                onClick={() => executeQuery(p.query)}
-                className="px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md text-[11px] text-slate-700 whitespace-nowrap transition-colors cursor-pointer"
-              >
-                {p.title}
-              </button>
-            ))}
+          <div className="px-4 py-2 bg-slate-50/80 border-t border-iso-border flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
+            <span className="text-[10px] font-mono text-slate-400 shrink-0 flex items-center gap-1">
+              <Sparkles size={11} className="text-amber-500" />
+              Suggested:
+            </span>
+            {quickOptions.map((opt, idx) => {
+              const label = typeof opt === 'string' ? opt : (opt.title || opt.query);
+              const val = typeof opt === 'string' ? opt : (opt.query || opt.title);
+              return (
+                <button
+                  key={idx}
+                  onClick={() => executeQuery(val)}
+                  className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 rounded-full text-[11px] text-slate-700 whitespace-nowrap transition-colors cursor-pointer shadow-2xs font-medium"
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         )}
 
-        {/* Composer */}
+        {/* Composer - Themed */}
         <form onSubmit={handleSubmit} className="p-3 border-t border-iso-border flex items-center gap-2 bg-white shrink-0">
           <div className="flex-1 bg-slate-50 border border-slate-200 focus-within:border-iso-primary focus-within:bg-white rounded-md px-3 py-1.5 flex items-center gap-2 transition-colors">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your question..."
+              placeholder={uiConfigs.DefaultEmptyMessage || "Type your question or use microphone..."}
               className="flex-1 bg-transparent text-xs text-slate-800 outline-none"
               disabled={loading || !activeBotId}
             />
             <button
               type="button"
               onClick={toggleVoiceInput}
-              className={`p-1 rounded text-slate-400 hover:text-slate-700 cursor-pointer transition-colors ${isListening ? 'text-red-500' : ''}`}
+              className={`p-1.5 rounded-full cursor-pointer transition-all ${
+                isListening 
+                  ? 'bg-rose-500 text-white animate-pulse' 
+                  : 'text-slate-400 hover:text-slate-700 hover:bg-slate-200/50'
+              }`}
               title="Voice Input"
             >
-              <Mic size={14} />
+              <Mic size={15} />
             </button>
           </div>
 
           <button
             type="submit"
             disabled={loading || !input.trim() || !activeBotId}
-            className="px-3.5 py-2 bg-iso-primary hover:bg-iso-primaryLight disabled:opacity-40 text-white rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+            className="px-4 py-2 disabled:opacity-40 text-white rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+            style={{ backgroundColor: themeColor }}
           >
             <Send size={12} />
             <span>Send</span>
