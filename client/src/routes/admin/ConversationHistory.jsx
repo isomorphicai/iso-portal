@@ -5,7 +5,7 @@ import {
   AlertCircle, ChevronRight, ChevronLeft, ChevronsLeft, ChevronsRight,
   ExternalLink, ArrowUpDown, User,
   Sparkles, ShieldCheck, ThumbsUp, ThumbsDown, X, Copy, Check,
-  ArrowUp, ArrowDown, CalendarRange
+  ArrowUp, ArrowDown, CalendarRange, Globe, Layers, Radio, Laptop
 } from 'lucide-react';
 import CustomDropdown from '../../components/CustomDropdown';
 
@@ -355,6 +355,69 @@ export default function ConversationHistory({
     }
   };
 
+  // Active Tenant & Configuration (MongoDB Atlas master.tenantInfo)
+  const activeTenantObj = useMemo(() => {
+    if (selectedTenantId && selectedTenantId !== 'all') {
+      return tenantList.find(t => (t.tenantId === selectedTenantId || t.code === selectedTenantId)) || selectedTenant;
+    }
+    return selectedTenant;
+  }, [selectedTenantId, tenantList, selectedTenant]);
+
+  const tenantConfig = activeTenantObj?.tenantConfig || selectedTenant?.tenantConfig || {};
+  const configuredTimeZone = tenantConfig?.timeZone || undefined;
+  const showIntegrationType = tenantConfig?.showIntegrationTypeInChatHistory !== false;
+
+  // Safe timezone-aware datetime formatters
+  const formatSessionTime = (dateVal, includeSeconds = false) => {
+    if (!dateVal) return 'N/A';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return 'N/A';
+    const opts = {
+      hour: '2-digit',
+      minute: '2-digit',
+      ...(includeSeconds ? { second: '2-digit' } : {})
+    };
+    if (configuredTimeZone) {
+      try {
+        opts.timeZone = configuredTimeZone;
+      } catch (e) {}
+    }
+    return d.toLocaleTimeString([], opts);
+  };
+
+  const formatSessionDate = (dateVal) => {
+    if (!dateVal) return '';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return '';
+    const opts = { month: 'short', day: 'numeric' };
+    if (configuredTimeZone) {
+      try {
+        opts.timeZone = configuredTimeZone;
+      } catch (e) {}
+    }
+    return d.toLocaleDateString([], opts);
+  };
+
+  const formatSessionDateTime = (dateVal) => {
+    if (!dateVal) return 'N/A';
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return 'N/A';
+    const opts = {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    };
+    if (configuredTimeZone) {
+      try {
+        opts.timeZone = configuredTimeZone;
+      } catch (e) {}
+    }
+    return d.toLocaleString([], opts);
+  };
+
   // Copy session ID
   const handleCopySessionId = (sId) => {
     navigator.clipboard.writeText(sId);
@@ -372,14 +435,15 @@ export default function ConversationHistory({
     text += `ISOMORPHIC AI - CONVERSATION TRANSCRIPT\n`;
     text += `Session ID: ${selectedSessionId}\n`;
     text += `Tenant: ${curSession?.tenantId || 'N/A'} | Bot: ${curSession?.botId || 'N/A'}\n`;
-    text += `Session Started: ${new Date(curSession?.sessionStartAt || Date.now()).toLocaleString()}\n`;
-    text += `Session Ended: ${curSession?.sessionEndAt ? new Date(curSession.sessionEndAt).toLocaleString() : 'Active'}\n`;
+    text += `Time Zone: ${configuredTimeZone || 'Local'}\n`;
+    text += `Session Started: ${formatSessionDateTime(curSession?.sessionStartAt || curSession?.createdAt || Date.now())}\n`;
+    text += `Session Ended: ${curSession?.sessionEndAt ? formatSessionDateTime(curSession.sessionEndAt) : 'Active'}\n`;
     text += `Total Messages: ${sessionMessages.length}\n`;
     text += `========================================================\n\n`;
 
     sessionMessages.forEach((msg) => {
-      const qTime = new Date(msg.queryReceivedAt || msg.createdAt).toLocaleTimeString();
-      const aTime = new Date(msg.responseGivenAt || msg.createdAt).toLocaleTimeString();
+      const qTime = formatSessionTime(msg.queryReceivedAt || msg.createdAt, true);
+      const aTime = formatSessionTime(msg.responseGivenAt || msg.createdAt, true);
       text += `[${qTime}] USER: ${msg.query}\n`;
       text += `[${aTime}] BOT (${msg.intent || 'info'}, ${msg.latencyMs || 0}ms): ${msg.answer}\n`;
       if (msg.sources && msg.sources.length > 0) {
@@ -658,8 +722,9 @@ export default function ConversationHistory({
               sortedSessions.map((s) => {
                 const isSelected = s.sessionId === selectedSessionId;
                 const isActive = s.sessionStatus === 'active';
-                const startTime = s.sessionStartAt ? new Date(s.sessionStartAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A';
-                const startDate = s.sessionStartAt ? new Date(s.sessionStartAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : '';
+                const startTime = formatSessionTime(s.sessionStartAt || s.createdAt);
+                const startDate = formatSessionDate(s.sessionStartAt || s.createdAt);
+                const integrationType = s.integrationType || s.clientInfo?.integrationType || 'Widget';
 
                 return (
                   <div
@@ -673,7 +738,7 @@ export default function ConversationHistory({
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 truncate">
-                        <span className="font-mono text-[11px] font-bold text-iso-primary truncate max-w-[150px]">
+                        <span className="font-mono text-[11px] font-bold text-iso-primary truncate max-w-[140px]">
                           {s.sessionId}
                         </span>
                         <span className="px-1.5 py-0.2 bg-iso-bgSecondary border border-iso-border rounded-xs text-[9px] font-mono text-iso-textMuted">
@@ -681,15 +746,25 @@ export default function ConversationHistory({
                         </span>
                       </div>
 
-                      {/* Status Badge */}
-                      <span className={`px-1.5 py-0.5 rounded-xs text-[9px] font-mono font-bold flex items-center gap-1 ${
-                        isActive 
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                          : 'bg-slate-100 text-slate-600 border border-slate-200'
-                      }`}>
-                        {isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
-                        <span>{isActive ? 'ACTIVE' : 'ENDED'}</span>
-                      </span>
+                      <div className="flex items-center gap-1">
+                        {/* Integration Type Badge */}
+                        {showIntegrationType && (
+                          <span className="px-1.5 py-0.2 bg-iso-cardBg border border-iso-border/70 rounded-xs text-[9px] font-mono text-iso-primary flex items-center gap-1">
+                            <Layers size={9} className="text-iso-accent" />
+                            <span>{integrationType}</span>
+                          </span>
+                        )}
+
+                        {/* Status Badge */}
+                        <span className={`px-1.5 py-0.5 rounded-xs text-[9px] font-mono font-bold flex items-center gap-1 ${
+                          isActive 
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}>
+                          {isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                          <span>{isActive ? 'ACTIVE' : 'ENDED'}</span>
+                        </span>
+                      </div>
                     </div>
 
                     {/* Query Snippet */}
@@ -791,10 +866,17 @@ export default function ConversationHistory({
                     <span className="text-[10px] font-mono text-iso-textMuted">
                       ({currentActiveSession.tenantId} / {currentActiveSession.botId})
                     </span>
+                    {showIntegrationType && (
+                      <span className="px-1.5 py-0.2 bg-iso-cardBg border border-iso-border rounded-xs text-[9px] font-mono text-iso-primary flex items-center gap-1 font-semibold">
+                        <Layers size={9} className="text-iso-accent" />
+                        <span>{currentActiveSession.integrationType || 'Widget'}</span>
+                      </span>
+                    )}
                   </div>
                   <span className="text-[10px] font-mono text-iso-textMuted mt-0.5">
-                    Started: {new Date(currentActiveSession.sessionStartAt).toLocaleString()}
-                    {currentActiveSession.sessionEndAt && ` • Ended: ${new Date(currentActiveSession.sessionEndAt).toLocaleTimeString()}`}
+                    Started: {formatSessionDateTime(currentActiveSession.sessionStartAt || currentActiveSession.createdAt)}
+                    {currentActiveSession.sessionEndAt && ` • Ended: ${formatSessionDateTime(currentActiveSession.sessionEndAt)}`}
+                    {configuredTimeZone && ` (${configuredTimeZone})`}
                   </span>
                 </div>
 
@@ -843,7 +925,7 @@ export default function ConversationHistory({
                             {msg.query}
                           </div>
                           <span className="text-[9px] font-mono text-iso-textMuted mt-1 px-1">
-                            {new Date(msg.queryReceivedAt || msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                            {formatSessionTime(msg.queryReceivedAt || msg.createdAt, true)}
                           </span>
                         </div>
                       </div>
@@ -880,7 +962,7 @@ export default function ConversationHistory({
                               )}
                               {msg.formData.submittedAt && (
                                 <div className="text-[9px] text-amber-800/80 font-mono">
-                                  Submitted at: {new Date(msg.formData.submittedAt).toLocaleTimeString()}
+                                  Submitted at: {formatSessionTime(msg.formData.submittedAt, true)}
                                 </div>
                               )}
                             </div>
@@ -950,7 +1032,7 @@ export default function ConversationHistory({
 
                         </div>
                         <span className="text-[9px] font-mono text-iso-textMuted mt-1 px-1">
-                          {new Date(msg.responseGivenAt || msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                          {formatSessionTime(msg.responseGivenAt || msg.createdAt, true)}
                         </span>
                       </div>
 

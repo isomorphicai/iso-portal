@@ -39,36 +39,48 @@ export default function Login({ onLoginSuccess, showToast }) {
 
   return (
     <div 
-      className="min-h-screen w-full flex items-center justify-center p-4 relative overflow-hidden bg-iso-primary"
+      className="min-h-screen w-full flex items-center justify-center p-4 relative overflow-hidden"
       style={{
+        backgroundColor: 'var(--iso-login-bg, #0A2240)',
         backgroundImage: `url('https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=2000&q=80')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
       }}
     >
-      {/* Dark Navy & Gold Vignette Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-tr from-[#0A2240]/90 via-[#0A2240]/80 to-[#16365C]/85 backdrop-blur-[2px]" />
+      {/* Dynamic Brand Vignette Overlay */}
+      <div 
+        className="absolute inset-0 backdrop-blur-[2px]" 
+        style={{
+          background: 'linear-gradient(135deg, rgba(10, 34, 64, 0.90) 0%, rgba(10, 34, 64, 0.80) 50%, rgba(22, 54, 92, 0.85) 100%)'
+        }}
+      />
 
       {/* Main Login Card */}
-      <div className="relative z-10 w-full max-w-md bg-white/95 backdrop-blur-md border border-[#E2DFD6] rounded-sm p-8 shadow-2xl flex flex-col gap-6 animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 w-full max-w-md bg-white/95 backdrop-blur-md border border-iso-border rounded-sm p-8 shadow-2xl flex flex-col gap-6 animate-in fade-in zoom-in-95 duration-200">
         
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center">
-          <div className="w-12 h-12 rounded-sm bg-iso-bgSecondary border border-iso-border flex items-center justify-center text-2xl mb-3 shadow-xs select-none">
-            🌐
-          </div>
-          
-          <div className="flex items-center gap-2">
-            <span className="text-3xl font-bold tracking-tight font-serif text-iso-primary">
-              isomorphic
-            </span>
-            <span className="text-[10px] bg-iso-primary text-white font-mono uppercase px-1.5 py-0.5 rounded-sm tracking-wider font-semibold">
-              Portal
-            </span>
-          </div>
+          <img 
+            src="/isomorphic-logo.png" 
+            alt="isomorphic" 
+            className="h-14 md:h-16 max-w-[290px] object-contain mb-3 select-none" 
+            onError={(e) => {
+              e.target.style.display = 'none';
+              if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
+            }} 
+          />
+          <span 
+            style={{ display: 'none' }} 
+            className="text-3xl font-bold tracking-tight font-serif text-iso-primary mb-1"
+          >
+            isomorphic
+          </span>
 
-          <span className="text-[11px] text-iso-textMuted font-mono uppercase tracking-widest block mt-1.5">
+          <span 
+            className="text-[11px] font-mono uppercase tracking-widest block font-medium"
+            style={{ color: 'var(--iso-forgotFont, #6B7280)' }}
+          >
             Enterprise AI Administration
           </span>
         </div>
@@ -120,7 +132,12 @@ export default function Login({ onLoginSuccess, showToast }) {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-iso-primary hover:bg-iso-primaryLight disabled:opacity-50 text-white rounded-sm text-xs font-bold border border-iso-primary transition-all mt-2 cursor-pointer shadow-md hover:shadow-lg active:scale-[0.99] flex items-center justify-center gap-1.5"
+            className="w-full py-2.5 rounded-sm text-xs font-bold border transition-all mt-2 cursor-pointer shadow-md hover:shadow-lg active:scale-[0.99] flex items-center justify-center gap-1.5 disabled:opacity-60"
+            style={{
+              backgroundColor: loading ? 'var(--iso-disableButton, #c1c1c1)' : 'var(--iso-primary, #0A2240)',
+              borderColor: 'var(--iso-primary, #0A2240)',
+              color: 'var(--iso-buttonFont, #ffffff)'
+            }}
           >
             {loading ? (
               <>

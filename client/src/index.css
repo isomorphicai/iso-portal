@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --iso-primary: #0A2240;
+  --iso-primaryLight: #16365C;
+  --iso-accent: #C5A059;
+  --iso-accentDark: #9A7737;
+  --iso-accentLight: #EFE6D1;
+  --iso-border: #E2DFD6;
+  --iso-borderFocus: #C5A059;
+  --iso-buttonFont: #ffffff;
+  --iso-disableButton: #c1c1c1;
+  --iso-forgotFont: #373737;
+  --iso-bg: #FAF9F6;
+  --iso-bgSecondary: #F3F1EB;
+  --iso-cardBg: #FFFFFF;
+  --iso-text: #1A1E24;
+  --iso-textMuted: #5F6670;
+  --iso-header-font-size: 1.2rem;
+  --iso-title-font-size: 1rem;
+}
+
 @layer base {
   body {
     @apply bg-iso-bg text-iso-text antialiased selection:bg-iso-accent selection:text-white;
@@ -9,6 +29,14 @@
   
   h1, h2, h3, h4 {
     @apply text-iso-primary font-medium font-serif;
+  }
+
+  h1 {
+    font-size: var(--iso-header-font-size, 1.2rem);
+  }
+
+  h2, h3 {
+    font-size: var(--iso-title-font-size, 1rem);
   }
 
   /* Universal Themed Dropdown Select Styling */
@@ -25,7 +53,8 @@
   }
 
   select:focus {
-    @apply border-iso-accent ring-1 ring-iso-accent/30;
+    @apply border-iso-accent;
+    outline: 1px solid var(--iso-accentLight, #EFE6D1);
   }
 
   select:disabled {

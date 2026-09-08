@@ -4,6 +4,7 @@ import Header from './components/Header';
 import Toast from './components/Toast';
 import Login from './components/Login';
 import { apiUrl } from './config/api';
+import { applyTenantTheme, resetTenantTheme } from './utils/theme';
 
 // Import Modular Portal routes configurations
 import { adminRoutes } from './routes/admin/routes';
@@ -58,6 +59,7 @@ export default function App() {
     setSelectedTenant(null);
     setSelectedBot(null);
     setBots([]);
+    resetTenantTheme();
 
     // Inform backend to end session in master > sessionManagement collection
     if (activeSessionId) {
@@ -203,6 +205,16 @@ export default function App() {
       fetchTenants(currentUser.tenantId);
     }
   }, [currentUser]);
+
+  // Apply Dynamic Tenant Theme whenever selectedTenant or currentUser changes
+  useEffect(() => {
+    const tenantConfig = selectedTenant?.tenantConfig || currentUser?.tenantConfig;
+    if (tenantConfig && Object.keys(tenantConfig).length > 0) {
+      applyTenantTheme(tenantConfig, selectedTenant || { tenantName: currentUser?.tenantName, tenantId: currentUser?.tenantId });
+    } else if (currentUser?.role === 'global_admin' && !selectedTenant) {
+      resetTenantTheme();
+    }
+  }, [selectedTenant, currentUser]);
 
   // Fetch Bots when selectedTenant changes
   useEffect(() => {
@@ -355,6 +367,7 @@ export default function App() {
         portalRoutes={portalRoutes}
         currentUser={currentUser}
         setCurrentUser={setCurrentUser}
+        selectedTenant={selectedTenant}
         showToast={showToast}
         onLogout={() => handleLogout('manual')}
       />

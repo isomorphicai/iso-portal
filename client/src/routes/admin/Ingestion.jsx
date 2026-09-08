@@ -3,7 +3,10 @@ import {
   Database, Globe, Plus, Trash2, RefreshCw, Eye, Search, 
   ArrowUpDown, ArrowUp, ArrowDown, Bell, BellOff, Calendar, 
   Mail, CheckCircle2, AlertTriangle, Loader2, Sparkles, X,
-  FileText, ExternalLink, Bot, Building2, ListFilter, Send
+  FileText, ExternalLink, Bot, Building2, ListFilter, Send,
+  Compass, Layers, Filter, Check, CheckSquare, Square, Shield,
+  Radio, CornerDownRight, Link2, Sliders, ArrowRight, Server,
+  CheckCircle, AlertCircle
 } from 'lucide-react';
 import ConfirmModal from '../../components/ConfirmModal';
 import CustomDropdown from '../../components/CustomDropdown';
@@ -34,6 +37,32 @@ export default function Ingestion({
   const [expiryNotificationEnabled, setExpiryNotificationEnabled] = useState(false);
   const [notificationEmail, setNotificationEmail] = useState('');
   const [isScraping, setIsScraping] = useState(false);
+
+  // Web Crawler Modal states
+  const [showCrawlerModal, setShowCrawlerModal] = useState(false);
+  const [crawlerStep, setCrawlerStep] = useState('config'); // 'config' | 'results' | 'ingesting' | 'done'
+  const [crawlStartUrl, setCrawlStartUrl] = useState('');
+  const [crawlDepth, setCrawlDepth] = useState(2);
+  const [crawlMaxPages, setCrawlMaxPages] = useState(30);
+  const [crawlIncludePatterns, setCrawlIncludePatterns] = useState('');
+  const [crawlExcludePatterns, setCrawlExcludePatterns] = useState('');
+  const [crawlProxy, setCrawlProxy] = useState('');
+  const [crawlAllowSubdomains, setCrawlAllowSubdomains] = useState(false);
+  const [crawlLinkExpiry, setCrawlLinkExpiry] = useState('');
+  const [crawlExpiryNotificationEnabled, setCrawlExpiryNotificationEnabled] = useState(false);
+  const [crawlNotificationEmail, setCrawlNotificationEmail] = useState('');
+  const [isCrawling, setIsCrawling] = useState(false);
+  const [discoveredUrls, setDiscoveredUrls] = useState([]);
+  const [crawlerSearchFilter, setCrawlerSearchFilter] = useState('');
+  const [batchProgress, setBatchProgress] = useState({
+    current: 0,
+    total: 0,
+    currentUrl: '',
+    successful: 0,
+    failed: 0,
+    inProgress: false,
+    errors: []
+  });
 
   // Ingestion Sources state
   const [sources, setSources] = useState([]);
@@ -144,8 +173,9 @@ export default function Ingestion({
 
   const handleIngestSubmit = async (e) => {
     e.preventDefault();
-    if (!urlInput.trim()) {
-      showToast('Please enter a valid webpage URL.', 'error');
+    const rawInput = urlInput.trim();
+    if (!rawInput) {
+      showToast('Please enter at least one valid webpage URL.', 'error');
       return;
     }
     if (!activeTenantId || !activeBotId) {
@@ -153,43 +183,341 @@ export default function Ingestion({
       return;
     }
 
+    // Split by comma, semicolon, or newline
+    const urlsList = rawInput
+      .split(/[\n,;]+/)
+      .map(u => u.trim())
+      .filter(Boolean);
+
+    if (urlsList.length === 0) {
+      showToast('Please enter valid webpage URLs.', 'error');
+      return;
+    }
+
     const currentTenantObj = tenants.find(t => (t.tenantId === activeTenantId || t.code === activeTenantId));
     const currentBotObj = availableBots.find(b => (b.botId === activeBotId || b.code === activeBotId));
 
     setIsScraping(true);
+    // Auto-minimize modal immediately and open Tasks Monitor in sidebar
+    setShowIngestModal(false);
+    window.dispatchEvent(new CustomEvent('iso_open_operations_panel'));
+    window.dispatchEvent(new CustomEvent('iso_job_updated'));
+    showToast(
+      urlsList.length === 1
+        ? 'Document ingestion started in background. Live telemetry active in Tasks Monitor.'
+        : `Batch ingestion of ${urlsList.length} URLs started in background. Live telemetry active in Tasks Monitor.`,
+      'info'
+    );
+
     try {
-      const payload = {
-        url: urlInput.trim(),
-        tenantId: activeTenantId,
-        tenantName: currentTenantObj?.name || currentTenantObj?.tenantName || activeTenantId,
-        botId: activeBotId,
-        botName: currentBotObj?.botName || currentBotObj?.name || activeBotId,
-        linkExpiry: linkExpiry || null,
-        expiryNotificationEnabled,
-        notificationEmail: expiryNotificationEnabled ? notificationEmail.trim() : '',
-        tenantDbName: currentTenantObj?.tenantDbName || `iso_${activeTenantId}`
-      };
+      if (urlsList.length === 1) {
+        const payload = {
+          url: urlsList[0],
+          tenantId: activeTenantId,
+          tenantName: currentTenantObj?.name || currentTenantObj?.tenantName || activeTenantId,
+          botId: activeBotId,
+          botName: currentBotObj?.botName || currentBotObj?.name || activeBotId,
+          linkExpiry: linkExpiry || null,
+          expiryNotificationEnabled,
+          notificationEmail: expiryNotificationEnabled ? notificationEmail.trim() : '',
+          tenantDbName: currentTenantObj?.tenantDbName || `iso_${activeTenantId}`
+        };
 
-      const res = await fetch('/api/ingestion/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
+        const res = await fetch('/api/ingestion/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
 
-      if (res.ok) {
-        showToast(`Indexed "${data.title}" successfully into ${data.totalChunks} chunks!`);
-        setShowIngestModal(false);
-        loadSources();
+        if (res.ok) {
+          showToast(`Indexed "${data.title}" successfully into ${data.totalChunks} chunks!`);
+          loadSources();
+        } else {
+          showToast(data.error || 'Failed to scrape and index URL.', 'error');
+        }
       } else {
-        showToast(data.error || 'Failed to scrape and index URL.', 'error');
+        // Batch ingestion for multiple comma-separated URLs
+        const payload = {
+          urls: urlsList,
+          tenantId: activeTenantId,
+          tenantName: currentTenantObj?.name || currentTenantObj?.tenantName || activeTenantId,
+          botId: activeBotId,
+          botName: currentBotObj?.botName || currentBotObj?.name || activeBotId,
+          linkExpiry: linkExpiry || null,
+          expiryNotificationEnabled,
+          notificationEmail: expiryNotificationEnabled ? notificationEmail.trim() : '',
+          tenantDbName: currentTenantObj?.tenantDbName || `iso_${activeTenantId}`
+        };
+
+        const res = await fetch('/api/ingestion/batch-ingest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          showToast(`Batch ingestion finished: ${data.successful} successful, ${data.failed} failed.`);
+          loadSources();
+        } else {
+          showToast(data.error || 'Failed batch ingestion.', 'error');
+        }
       }
     } catch (err) {
       showToast('Network error during ingestion pipeline.', 'error');
     } finally {
       setIsScraping(false);
+      window.dispatchEvent(new CustomEvent('iso_job_updated'));
     }
   };
+
+  // Open Web Crawler Modal
+  const handleOpenCrawlerModal = () => {
+    setCrawlStartUrl('');
+    setCrawlDepth(2);
+    setCrawlMaxPages(100);
+    setCrawlIncludePatterns('');
+    setCrawlExcludePatterns('');
+    setCrawlProxy('');
+    setCrawlAllowSubdomains(false);
+    setCrawlLinkExpiry('');
+    setCrawlExpiryNotificationEnabled(false);
+    setCrawlNotificationEmail('');
+    setDiscoveredUrls([]);
+    setCrawlerSearchFilter('');
+    setCrawlerStep('config');
+    setShowCrawlerModal(true);
+  };
+
+  // Listen for request to open crawler popup at Step 2 (Discovered URLs) from Tasks monitor
+  useEffect(() => {
+    const processCrawlJob = (job) => {
+      if (!job) return;
+      let list = [];
+      if (job?.result?.discoveredUrls && Array.isArray(job.result.discoveredUrls) && job.result.discoveredUrls.length > 0) {
+        list = job.result.discoveredUrls.map((u, idx) => ({
+          ...u,
+          id: idx,
+          selected: u.status !== 'error'
+        }));
+      } else if (job?.discoveredUrls && Array.isArray(job.discoveredUrls) && job.discoveredUrls.length > 0) {
+        list = job.discoveredUrls.map((u, idx) => ({
+          ...u,
+          id: idx,
+          selected: u.status !== 'error'
+        }));
+      } else if (discoveredUrls.length > 0) {
+        list = discoveredUrls;
+      }
+
+      if (job?.params?.startUrl) setCrawlStartUrl(job.params.startUrl);
+      else if (job?.result?.startUrl) setCrawlStartUrl(job.result.startUrl);
+      if (job?.params?.maxDepth) setCrawlDepth(job.params.maxDepth);
+      else if (job?.result?.maxDepth) setCrawlDepth(job.result.maxDepth);
+      if (job?.params?.maxPages) setCrawlMaxPages(job.params.maxPages);
+      else if (job?.result?.maxPages) setCrawlMaxPages(job.result.maxPages);
+
+      if (list.length > 0) {
+        setDiscoveredUrls(list);
+        setCrawlerStep('results');
+        setShowCrawlerModal(true);
+        showToast(`Loaded ${list.length} discovered URLs ready for ingestion.`);
+      } else {
+        setCrawlerStep('results');
+        setShowCrawlerModal(true);
+        showToast('No discovered URLs found for this job.', 'warning');
+      }
+    };
+
+    // Check if there is a pending crawl job on mount
+    let pending = window.__pendingContinueCrawlJob;
+    if (!pending) {
+      try {
+        const stored = sessionStorage.getItem('iso_pending_crawl_job');
+        if (stored) pending = JSON.parse(stored);
+      } catch (e) {}
+    }
+    if (pending) {
+      window.__pendingContinueCrawlJob = null;
+      try { sessionStorage.removeItem('iso_pending_crawl_job'); } catch (e) {}
+      processCrawlJob(pending);
+    }
+
+    const handleContinueCrawl = (e) => {
+      const job = e.detail?.job || window.__pendingContinueCrawlJob;
+      window.__pendingContinueCrawlJob = null;
+      try { sessionStorage.removeItem('iso_pending_crawl_job'); } catch (err) {}
+      processCrawlJob(job);
+    };
+
+    window.addEventListener('iso_continue_crawl_job', handleContinueCrawl);
+    return () => window.removeEventListener('iso_continue_crawl_job', handleContinueCrawl);
+  }, []);
+
+  // Start Recursive Web Crawling
+  const handleStartCrawl = async (e) => {
+    if (e) e.preventDefault();
+    if (!crawlStartUrl.trim()) {
+      showToast('Please enter a valid starting URL.', 'error');
+      return;
+    }
+    if (!activeTenantId || !activeBotId) {
+      showToast('Please select an Organization and Chatbot first.', 'error');
+      return;
+    }
+
+    setIsCrawling(true);
+    // Minimize the popup and open the sidebar tasks menu
+    setShowCrawlerModal(false);
+    window.dispatchEvent(new CustomEvent('iso_open_operations_panel'));
+    showToast('Crawl launched in background. Live progress is visible in Tasks Monitor.', 'info');
+
+    try {
+      const payload = {
+        startUrl: crawlStartUrl.trim(),
+        maxDepth: parseInt(crawlDepth) || 2,
+        maxPages: parseInt(crawlMaxPages) || 100,
+        includePatterns: crawlIncludePatterns.split(',').map(s => s.trim()).filter(Boolean),
+        excludePatterns: crawlExcludePatterns.split(',').map(s => s.trim()).filter(Boolean),
+        proxy: crawlProxy.trim(),
+        allowSubdomains: crawlAllowSubdomains,
+        tenantId: activeTenantId,
+        botId: activeBotId
+      };
+
+      // Notify Sidebar operations monitor
+      window.dispatchEvent(new CustomEvent('iso_job_updated'));
+
+      const res = await fetch('/api/ingestion/crawl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      window.dispatchEvent(new CustomEvent('iso_job_updated'));
+
+      if (res.ok && Array.isArray(data.discoveredUrls)) {
+        const list = data.discoveredUrls.map((u, idx) => ({
+          ...u,
+          id: idx,
+          selected: u.status !== 'error'
+        }));
+        setDiscoveredUrls(list);
+        setCrawlerStep('results');
+        showToast(`Crawl finished: ${list.length} URLs discovered. Review in Tasks Monitor to ingest.`, 'info');
+      } else {
+        showToast(data.error || 'Failed to crawl website.', 'error');
+      }
+    } catch (err) {
+      showToast('Network error during web crawl.', 'error');
+    } finally {
+      setIsCrawling(false);
+      window.dispatchEvent(new CustomEvent('iso_job_updated'));
+    }
+  };
+
+  const toggleSelectAllDiscovered = (checked) => {
+    setDiscoveredUrls(prev => prev.map(u => ({
+      ...u,
+      selected: u.status !== 'error' ? checked : false
+    })));
+  };
+
+  const toggleDiscoveredUrl = (urlStr) => {
+    setDiscoveredUrls(prev => prev.map(u => (u.url === urlStr ? { ...u, selected: !u.selected } : u)));
+  };
+
+  // Batch Ingestion for selected discovered URLs
+  const handleBatchIngestSubmit = async () => {
+    const selectedList = discoveredUrls.filter(u => u.selected);
+    if (selectedList.length === 0) {
+      showToast('Please select at least one discovered URL to ingest.', 'warning');
+      return;
+    }
+
+    const currentTenantObj = tenants.find(t => (t.tenantId === activeTenantId || t.code === activeTenantId));
+    const currentBotObj = availableBots.find(b => (b.botId === activeBotId || b.code === activeBotId));
+
+    setCrawlerStep('ingesting');
+    setShowCrawlerModal(false);
+    window.dispatchEvent(new CustomEvent('iso_open_operations_panel'));
+    window.dispatchEvent(new CustomEvent('iso_job_updated'));
+    showToast(`Batch ingestion of ${selectedList.length} URLs started in background. Live telemetry active in Tasks Monitor.`, 'info');
+
+    setBatchProgress({
+      current: 0,
+      total: selectedList.length,
+      currentUrl: '',
+      successful: 0,
+      failed: 0,
+      inProgress: true,
+      errors: []
+    });
+
+    for (let i = 0; i < selectedList.length; i++) {
+      const item = selectedList[i];
+      setBatchProgress(prev => ({
+        ...prev,
+        current: i + 1,
+        currentUrl: item.url
+      }));
+
+      try {
+        const res = await fetch('/api/ingestion/scrape', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: item.url,
+            tenantId: activeTenantId,
+            tenantName: currentTenantObj?.name || currentTenantObj?.tenantName || activeTenantId,
+            botId: activeBotId,
+            botName: currentBotObj?.botName || currentBotObj?.name || activeBotId,
+            linkExpiry: crawlLinkExpiry || null,
+            expiryNotificationEnabled: crawlExpiryNotificationEnabled,
+            notificationEmail: crawlExpiryNotificationEnabled ? crawlNotificationEmail.trim() : '',
+            tenantDbName: currentTenantObj?.tenantDbName || `iso_${activeTenantId}`
+          })
+        });
+
+        if (res.ok) {
+          setBatchProgress(prev => ({ ...prev, successful: prev.successful + 1 }));
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          setBatchProgress(prev => ({
+            ...prev,
+            failed: prev.failed + 1,
+            errors: [...prev.errors, { url: item.url, error: errData.error || 'Failed' }]
+          }));
+        }
+      } catch (err) {
+        setBatchProgress(prev => ({
+          ...prev,
+          failed: prev.failed + 1,
+          errors: [...prev.errors, { url: item.url, error: err.message }]
+        }));
+      }
+      window.dispatchEvent(new CustomEvent('iso_job_updated'));
+    }
+
+    setBatchProgress(prev => ({ ...prev, inProgress: false }));
+    setCrawlerStep('done');
+    loadSources();
+    window.dispatchEvent(new CustomEvent('iso_job_updated'));
+    showToast(`Batch ingestion finished: ${selectedList.length} processed.`);
+  };
+
+  const filteredDiscoveredUrls = useMemo(() => {
+    if (!crawlerSearchFilter.trim()) return discoveredUrls;
+    const q = crawlerSearchFilter.toLowerCase().trim();
+    return discoveredUrls.filter(u => 
+      u.url.toLowerCase().includes(q) || (u.title && u.title.toLowerCase().includes(q))
+    );
+  }, [discoveredUrls, crawlerSearchFilter]);
+
+  const selectedDiscoveredCount = useMemo(() => {
+    return discoveredUrls.filter(u => u.selected).length;
+  }, [discoveredUrls]);
 
   const handleInspectChunks = async (source) => {
     setSelectedSourceForChunks(source);
@@ -489,17 +817,31 @@ export default function Ingestion({
               <button
                 type="button"
                 onClick={loadSources}
-                className="p-1.5 text-iso-textMuted hover:text-iso-primary border border-iso-border rounded-sm hover:bg-iso-bgSecondary transition-all cursor-pointer"
+                className="p-1.5 text-iso-textMuted hover:text-iso-primary border border-iso-border rounded-sm hover:bg-iso-bgSecondary transition-all cursor-pointer shadow-2xs"
                 title="Refresh Sources"
               >
                 <RefreshCw size={13} className={loadingSources ? 'animate-spin' : ''} />
               </button>
+              
+              {/* Web Crawler Button */}
+              <button
+                type="button"
+                onClick={handleOpenCrawlerModal}
+                className="px-3 py-1.5 bg-iso-bgSecondary hover:bg-iso-bg border border-iso-border hover:border-iso-primary rounded-sm text-xs font-bold text-iso-primary flex items-center gap-1.5 shadow-2xs transition-all shrink-0 cursor-pointer"
+                title="Deep website crawler with depth, proxy, and include/exclude filtering"
+              >
+                <Compass size={13} className="text-iso-accent" />
+                <span>Web Crawler</span>
+              </button>
+
+              {/* Single URL Ingest Button */}
               <button
                 type="button"
                 onClick={handleOpenIngestModal}
                 className="px-3.5 py-1.5 bg-iso-primary hover:bg-iso-primaryLight text-white rounded-sm text-xs font-bold border border-iso-primary flex items-center gap-1.5 shadow-sm transition-colors shrink-0 cursor-pointer"
               >
-                <Plus size={14} /> Ingest New URL
+                <Plus size={14} />
+                <span>Ingest Single URL</span>
               </button>
             </div>
           </div>
@@ -818,25 +1160,27 @@ export default function Ingestion({
             {/* Modal Form */}
             <form onSubmit={handleIngestSubmit} className="p-6 flex flex-col gap-4 text-xs">
               
-              {/* Target URL */}
+              {/* Target URL(s) */}
               <div>
-                <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1 font-semibold">
-                  Target Webpage URL <span className="text-iso-error">*</span>
+                <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1 font-semibold flex items-center justify-between">
+                  <span>Target Webpage URL(s) <span className="text-iso-error">*</span></span>
+                  <span className="text-[9px] text-iso-accent font-normal lowercase">single URL or comma-separated</span>
                 </label>
                 <div className="relative">
-                  <input
-                    type="url"
+                  <textarea
+                    rows={3}
                     value={urlInput}
+                    disabled={isScraping}
                     onChange={(e) => setUrlInput(e.target.value)}
-                    placeholder="https://docs.company.com/help/faq"
-                    className="w-full bg-iso-bg border border-iso-border focus:border-iso-accent rounded-sm pl-8 pr-3.5 py-2 text-xs text-iso-text outline-none font-mono"
+                    placeholder="https://docs.company.com/faq, https://docs.company.com/api, https://docs.company.com/guide"
+                    className="w-full bg-iso-bg border border-iso-border focus:border-iso-accent rounded-sm pl-8 pr-3.5 py-2 text-xs text-iso-text outline-none font-mono disabled:opacity-50 disabled:bg-iso-bgSecondary resize-none"
                     required
                     autoFocus
                   />
                   <Globe size={14} className="absolute left-2.5 top-2.5 text-iso-textMuted" />
                 </div>
                 <p className="text-[10px] text-iso-textMuted mt-1">
-                  The engine will scrape the webpage, generate semantic text chunks, create vector embeddings, and store them in MongoDB Atlas.
+                  You can enter a single URL or paste multiple URLs separated by commas, semicolons, or newlines. Each page will be scraped, chunked, and embedded into vector storage.
                 </p>
               </div>
 
@@ -852,8 +1196,9 @@ export default function Ingestion({
                   <input
                     type="date"
                     value={linkExpiry}
+                    disabled={isScraping}
                     onChange={(e) => setLinkExpiry(e.target.value)}
-                    className="w-full bg-iso-cardBg border border-iso-border rounded-sm px-3 py-1.5 text-xs text-iso-text outline-none font-mono"
+                    className="w-full bg-iso-cardBg border border-iso-border rounded-sm px-3 py-1.5 text-xs text-iso-text outline-none font-mono disabled:opacity-50"
                   />
                 </div>
 
@@ -867,8 +1212,9 @@ export default function Ingestion({
                     <input
                       type="checkbox"
                       checked={expiryNotificationEnabled}
+                      disabled={isScraping}
                       onChange={(e) => setExpiryNotificationEnabled(e.target.checked)}
-                      className="w-4 h-4 accent-iso-primary cursor-pointer rounded"
+                      className="w-4 h-4 accent-iso-primary cursor-pointer rounded disabled:opacity-50"
                     />
                   </div>
 
@@ -877,9 +1223,10 @@ export default function Ingestion({
                       <input
                         type="email"
                         value={notificationEmail}
+                        disabled={isScraping}
                         onChange={(e) => setNotificationEmail(e.target.value)}
                         placeholder="alerts@company.com"
-                        className="w-full bg-iso-cardBg border border-iso-border focus:border-iso-accent rounded-sm pl-8 pr-3.5 py-1.5 text-xs text-iso-text outline-none font-mono"
+                        className="w-full bg-iso-cardBg border border-iso-border focus:border-iso-accent rounded-sm pl-8 pr-3.5 py-1.5 text-xs text-iso-text outline-none font-mono disabled:opacity-50"
                         required={expiryNotificationEnabled}
                       />
                       <Mail size={13} className="absolute left-2.5 top-2 text-iso-textMuted" />
@@ -894,7 +1241,8 @@ export default function Ingestion({
                 <button
                   type="button"
                   onClick={() => setShowIngestModal(false)}
-                  className="px-4 py-1.5 bg-iso-bgSecondary border border-iso-border rounded-sm text-xs font-semibold cursor-pointer"
+                  disabled={isScraping}
+                  className="px-4 py-1.5 bg-iso-bgSecondary border border-iso-border rounded-sm text-xs font-semibold cursor-pointer disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -904,7 +1252,7 @@ export default function Ingestion({
                   className="px-5 py-1.5 bg-iso-primary hover:bg-iso-primaryLight disabled:opacity-50 text-white rounded-sm text-xs font-bold border border-iso-primary flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
                 >
                   {isScraping ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                  <span>{isScraping ? 'Scraping & Indexing...' : 'Scrape & Index Document'}</span>
+                  <span>{isScraping ? 'Scraping & Indexing...' : 'Scrape & Index Document(s)'}</span>
                 </button>
               </div>
             </form>
@@ -982,6 +1330,588 @@ export default function Ingestion({
               >
                 Done
               </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* WEB CRAWLER MODAL (POPUP WITH DEPTH, PROXY, INCLUDE/EXCLUDE & BATCH INGEST) */}
+      {/* ========================================================================= */}
+      {showCrawlerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-hidden">
+          <div className="bg-iso-cardBg border border-iso-border rounded-md shadow-2xl w-full max-w-4xl h-[90vh] max-h-[760px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            
+            {/* Modal Header (Fixed Top) */}
+            <div className="px-6 py-3.5 border-b border-iso-border flex items-center justify-between bg-iso-bgSecondary/30 shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-sm bg-iso-accent/15 border border-iso-accent/30 flex items-center justify-center text-iso-primary">
+                  <Compass size={18} className="text-iso-accent" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-serif font-bold text-iso-primary">Web Crawler &amp; Deep Link Discovery</h3>
+                    <span className="px-1.5 py-0.2 bg-iso-primary text-white text-[9px] font-mono rounded uppercase font-bold tracking-wider">
+                      Recursive Engine
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-iso-textMuted font-mono">
+                    Vector Partition: <strong className="text-iso-primary">{activeIndexName}</strong>
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowCrawlerModal(false)} 
+                disabled={isCrawling || batchProgress.inProgress}
+                className="p-1 text-iso-textMuted hover:text-iso-primary rounded cursor-pointer disabled:opacity-40"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Stepper Navigation (Fixed Below Header) */}
+            <div className="px-6 py-2 border-b border-iso-border bg-iso-bg flex items-center justify-between text-xs shrink-0 select-none">
+              <div className="flex items-center gap-2 font-mono text-[11px]">
+                <button
+                  type="button"
+                  disabled={isCrawling || batchProgress.inProgress}
+                  onClick={() => setCrawlerStep('config')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-colors disabled:opacity-50 ${
+                    crawlerStep === 'config'
+                      ? 'bg-iso-primary text-white font-bold'
+                      : 'text-iso-textMuted hover:text-iso-primary'
+                  }`}
+                >
+                  <span>1. Crawler Settings</span>
+                </button>
+
+                <ArrowRight size={12} className="text-iso-textMuted/60" />
+
+                <button
+                  type="button"
+                  disabled={discoveredUrls.length === 0 || isCrawling || batchProgress.inProgress}
+                  onClick={() => setCrawlerStep('results')}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm transition-colors disabled:opacity-40 ${
+                    crawlerStep === 'results'
+                      ? 'bg-iso-primary text-white font-bold'
+                      : 'text-iso-textMuted hover:text-iso-primary'
+                  }`}
+                >
+                  <span>2. Discovered URLs ({discoveredUrls.length})</span>
+                </button>
+
+                <ArrowRight size={12} className="text-iso-textMuted/60" />
+
+                <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-sm ${
+                  crawlerStep === 'ingesting' || crawlerStep === 'done'
+                    ? 'bg-iso-primary text-white font-bold'
+                    : 'text-iso-textMuted opacity-50'
+                }`}>
+                  <span>3. Ingesting &amp; Vectorization</span>
+                </span>
+              </div>
+
+              {crawlerStep === 'results' && (
+                <div className="text-[11px] font-mono">
+                  <span className="text-iso-accent font-bold">{selectedDiscoveredCount}</span> of <strong>{discoveredUrls.length}</strong> URLs selected
+                </div>
+              )}
+            </div>
+
+            {/* Modal Body Container (The ONLY Scrolling Element) */}
+            <div className="p-6 overflow-y-auto flex-1 text-xs space-y-4">
+              
+              {/* STEP 1: CONFIGURATION FORM */}
+              {crawlerStep === 'config' && (
+                <div className="flex flex-col gap-5">
+                  
+                  {/* Target Starting URL */}
+                  <div>
+                    <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1 font-bold">
+                      Starting Root URL <span className="text-iso-error">*</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="url"
+                        value={crawlStartUrl}
+                        disabled={isCrawling || batchProgress.inProgress}
+                        onChange={(e) => setCrawlStartUrl(e.target.value)}
+                        placeholder="https://docs.company.com or https://company.com/knowledge-base"
+                        className="w-full bg-iso-bg border border-iso-border focus:border-iso-accent rounded-sm pl-8 pr-3.5 py-2.5 text-xs text-iso-text outline-none font-mono disabled:opacity-50 disabled:bg-iso-bgSecondary"
+                        required
+                        autoFocus
+                      />
+                      <Globe size={14} className="absolute left-2.5 top-3 text-iso-textMuted" />
+                    </div>
+                    <p className="text-[10px] text-iso-textMuted mt-1">
+                      The crawler starts at this URL and recursively traverses internal pages up to the selected depth.
+                    </p>
+                  </div>
+
+                  {/* Grid: Crawl Depth & Max Pages Limit */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    {/* Depth Selector */}
+                    <div className="p-3.5 bg-iso-bg border border-iso-border rounded-sm flex flex-col gap-2">
+                      <label className="text-[10px] uppercase font-mono tracking-wider text-iso-primary font-bold flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <Layers size={13} className="text-iso-accent" />
+                          <span>Crawl Depth (Levels)</span>
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-iso-primary text-white rounded text-[9px]">
+                          Depth: {crawlDepth}
+                        </span>
+                      </label>
+                      <div className="grid grid-cols-5 gap-1.5 pt-1">
+                        {[1, 2, 3, 4, 5].map((d) => (
+                          <button
+                            key={d}
+                            type="button"
+                            disabled={isCrawling || batchProgress.inProgress}
+                            onClick={() => setCrawlDepth(d)}
+                            className={`py-1.5 rounded-sm text-xs font-mono font-bold border transition-all cursor-pointer disabled:opacity-50 ${
+                              crawlDepth === d
+                                ? 'bg-iso-primary text-white border-iso-primary shadow-xs'
+                                : 'bg-iso-cardBg text-iso-text border-iso-border hover:border-iso-primary'
+                            }`}
+                          >
+                            {d}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[9px] font-mono text-iso-textMuted mt-0.5">
+                        {crawlDepth === 1 && 'Level 1: Root start page only.'}
+                        {crawlDepth === 2 && 'Level 2: Root page + direct links (Recommended for docs).'}
+                        {crawlDepth === 3 && 'Level 3: Traverse 2 clicks deep into site tree.'}
+                        {crawlDepth >= 4 && `Level ${crawlDepth}: Deep recursive crawl across entire domain.`}
+                      </p>
+                    </div>
+
+                    {/* Max Pages Limit (Up to 10,000) */}
+                    <div className="p-3.5 bg-iso-bg border border-iso-border rounded-sm flex flex-col gap-2">
+                      <label className="text-[10px] uppercase font-mono tracking-wider text-iso-primary font-bold flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <Sliders size={13} className="text-iso-accent" />
+                          <span>Max Discovered Pages Limit</span>
+                        </span>
+                        <span className="px-1.5 py-0.5 bg-iso-primary text-white rounded text-[9px] font-mono font-bold">
+                          Cap: {crawlMaxPages}
+                        </span>
+                      </label>
+
+                      {/* Quick Presets up to 10,000 */}
+                      <div className="grid grid-cols-6 gap-1 pt-1">
+                        {[50, 100, 500, 1000, 5000, 10000].map((p) => (
+                          <button
+                            key={p}
+                            type="button"
+                            disabled={isCrawling || batchProgress.inProgress}
+                            onClick={() => setCrawlMaxPages(p)}
+                            className={`py-1 rounded-sm text-[10px] font-mono font-bold border transition-all cursor-pointer disabled:opacity-50 ${
+                              crawlMaxPages === p
+                                ? 'bg-iso-primary text-white border-iso-primary shadow-xs'
+                                : 'bg-iso-cardBg text-iso-text border-iso-border hover:border-iso-primary'
+                            }`}
+                          >
+                            {p >= 1000 ? `${p / 1000}k` : p}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Custom input allows up to 10000 */}
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[9px] font-mono text-iso-textMuted uppercase">Custom:</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="10000"
+                          value={crawlMaxPages}
+                          disabled={isCrawling || batchProgress.inProgress}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            if (!isNaN(val)) {
+                              setCrawlMaxPages(Math.min(10000, Math.max(1, val)));
+                            }
+                          }}
+                          className="w-24 bg-iso-cardBg border border-iso-border focus:border-iso-accent rounded-sm px-2 py-1 text-xs font-mono text-iso-text outline-none disabled:opacity-50"
+                        />
+                        <span className="text-[9px] font-mono text-iso-textMuted">pages max (1 - 10,000)</span>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Grid: Include Paths & Exclude Paths */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    
+                    {/* Include Paths */}
+                    <div>
+                      <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1 font-bold">
+                        Include Paths / Wildcards (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={crawlIncludePatterns}
+                        disabled={isCrawling || batchProgress.inProgress}
+                        onChange={(e) => setCrawlIncludePatterns(e.target.value)}
+                        placeholder="/docs/*, /help/*, /kb/*, /faq"
+                        className="w-full bg-iso-bg border border-iso-border focus:border-iso-accent rounded-sm px-3 py-2 text-xs text-iso-text outline-none font-mono disabled:opacity-50"
+                      />
+                      <span className="text-[9px] text-iso-textMuted mt-1 block">
+                        Comma-separated paths. Only URLs matching these patterns will be crawled.
+                      </span>
+                    </div>
+
+                    {/* Exclude Paths */}
+                    <div>
+                      <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1 font-bold">
+                        Exclude Paths / Wildcards (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        value={crawlExcludePatterns}
+                        disabled={isCrawling || batchProgress.inProgress}
+                        onChange={(e) => setCrawlExcludePatterns(e.target.value)}
+                        placeholder="/login, /cart, /admin/*, /tag/*"
+                        className="w-full bg-iso-bg border border-iso-border focus:border-iso-accent rounded-sm px-3 py-2 text-xs text-iso-text outline-none font-mono disabled:opacity-50"
+                      />
+                      <span className="text-[9px] text-iso-textMuted mt-1 block">
+                        Comma-separated paths to ignore (e.g. login pages, checkout carts).
+                      </span>
+                    </div>
+
+                  </div>
+
+                  {/* Proxy Server & Subdomains */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3.5 bg-iso-bg border border-iso-border rounded-sm">
+                    
+                    {/* Proxy Server */}
+                    <div>
+                      <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1 font-bold flex items-center gap-1.5">
+                        <Server size={12} className="text-iso-accent" />
+                        <span>HTTP / HTTPS Proxy Server (Optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={crawlProxy}
+                        disabled={isCrawling || batchProgress.inProgress}
+                        onChange={(e) => setCrawlProxy(e.target.value)}
+                        placeholder="http://user:pass@proxy.corp.com:8080"
+                        className="w-full bg-iso-cardBg border border-iso-border focus:border-iso-accent rounded-sm px-3 py-1.5 text-xs text-iso-text outline-none font-mono disabled:opacity-50"
+                      />
+                      <span className="text-[9px] text-iso-textMuted mt-0.5 block">
+                        Supports authenticated or unauthenticated HTTP/HTTPS proxies.
+                      </span>
+                    </div>
+
+                    {/* Subdomains Toggle & Expiry Settings */}
+                    <div className="flex flex-col gap-2.5 justify-center">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted font-bold">
+                          Allow Subdomains (e.g. blog.site.com)
+                        </label>
+                        <input
+                          type="checkbox"
+                          checked={crawlAllowSubdomains}
+                          disabled={isCrawling || batchProgress.inProgress}
+                          onChange={(e) => setCrawlAllowSubdomains(e.target.checked)}
+                          className="w-4 h-4 accent-iso-primary cursor-pointer rounded disabled:opacity-50"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-iso-border/40">
+                        <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted font-bold">
+                          Batch Link Expiry Date
+                        </label>
+                        <input
+                          type="date"
+                          value={crawlLinkExpiry}
+                          disabled={isCrawling || batchProgress.inProgress}
+                          onChange={(e) => setCrawlLinkExpiry(e.target.value)}
+                          className="bg-iso-cardBg border border-iso-border rounded-sm px-2 py-0.5 text-xs text-iso-text outline-none font-mono disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+
+                  </div>
+
+                </div>
+              )}
+
+              {/* STEP 2: DISCOVERED URLS LIST */}
+              {crawlerStep === 'results' && (
+                <div className="flex flex-col gap-4">
+                  
+                  {/* Results Filter & Selection Control Bar */}
+                  <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 bg-iso-bg border border-iso-border rounded-sm">
+                    
+                    {/* Live Search in Results */}
+                    <div className="relative flex-1 max-w-sm">
+                      <Search size={13} className="absolute left-2.5 top-2 text-iso-textMuted" />
+                      <input
+                        type="text"
+                        value={crawlerSearchFilter}
+                        disabled={isCrawling || batchProgress.inProgress}
+                        onChange={(e) => setCrawlerSearchFilter(e.target.value)}
+                        placeholder="Filter discovered URLs..."
+                        className="w-full bg-iso-cardBg border border-iso-border focus:border-iso-accent rounded-sm pl-8 pr-7 py-1 text-xs text-iso-text outline-none font-mono disabled:opacity-50"
+                      />
+                      {crawlerSearchFilter && (
+                        <button
+                          type="button"
+                          onClick={() => setCrawlerSearchFilter('')}
+                          className="absolute right-2 top-1.5 text-iso-textMuted hover:text-iso-text"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Quick Selection Buttons */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isCrawling || batchProgress.inProgress}
+                        onClick={() => toggleSelectAllDiscovered(true)}
+                        className="px-2.5 py-1 bg-iso-cardBg hover:bg-iso-bg border border-iso-border rounded-sm text-[11px] font-mono text-iso-primary font-bold cursor-pointer disabled:opacity-50"
+                      >
+                        Select All ({discoveredUrls.length})
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isCrawling || batchProgress.inProgress}
+                        onClick={() => toggleSelectAllDiscovered(false)}
+                        className="px-2.5 py-1 bg-iso-cardBg hover:bg-iso-bg border border-iso-border rounded-sm text-[11px] font-mono text-iso-textMuted cursor-pointer disabled:opacity-50"
+                      >
+                        Deselect All
+                      </button>
+                    </div>
+
+                  </div>
+
+                  {/* Discovered URLs List */}
+                  <div className="border border-iso-border rounded-sm overflow-hidden divide-y divide-iso-border/60 bg-iso-cardBg max-h-[380px] overflow-y-auto">
+                    {filteredDiscoveredUrls.length === 0 ? (
+                      <div className="p-8 text-center text-iso-textMuted font-mono text-xs">
+                        No discovered URLs match your search filter.
+                      </div>
+                    ) : (
+                      filteredDiscoveredUrls.map((item, idx) => {
+                        const isSelected = item.selected;
+                        const isError = item.status === 'error';
+
+                        return (
+                          <div
+                            key={idx}
+                            onClick={() => !isError && !isCrawling && !batchProgress.inProgress && toggleDiscoveredUrl(item.url)}
+                            className={`p-3 flex items-start gap-3 transition-colors cursor-pointer ${
+                              isSelected
+                                ? 'bg-iso-primary/5 hover:bg-iso-primary/10'
+                                : 'hover:bg-iso-bgSecondary/30 opacity-70'
+                            } ${isError ? 'opacity-50 cursor-not-allowed bg-rose-50/20' : ''}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={Boolean(isSelected)}
+                              disabled={isError || isCrawling || batchProgress.inProgress}
+                              onChange={() => toggleDiscoveredUrl(item.url)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="mt-0.5 w-4 h-4 accent-iso-primary cursor-pointer rounded shrink-0 disabled:opacity-50"
+                            />
+
+                            <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-iso-primary text-xs truncate max-w-md">
+                                  {item.title || 'Untitled Page'}
+                                </span>
+                                <span className="px-1.5 py-0.2 bg-iso-bgSecondary border border-iso-border rounded-xs text-[9px] font-mono text-iso-primary font-semibold shrink-0">
+                                  Depth {item.depth}
+                                </span>
+                                {isError && (
+                                  <span className="px-1.5 py-0.2 bg-rose-50 text-rose-700 border border-rose-200 rounded-xs text-[9px] font-mono font-bold">
+                                    Fetch Failed
+                                  </span>
+                                )}
+                              </div>
+
+                              <a
+                                href={item.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-[11px] font-mono text-iso-accent hover:underline truncate max-w-xl flex items-center gap-1"
+                              >
+                                <span>{item.url}</span>
+                                <ExternalLink size={10} className="shrink-0" />
+                              </a>
+
+                              {item.foundOn && item.foundOn !== 'Root Entry' && (
+                                <span className="text-[9px] font-mono text-iso-textMuted flex items-center gap-1 truncate mt-0.5">
+                                  <CornerDownRight size={9} className="shrink-0" />
+                                  <span>Found on: {item.foundOn}</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                </div>
+              )}
+
+              {/* STEP 3: LIVE BATCH INGESTION PROGRESS */}
+              {(crawlerStep === 'ingesting' || crawlerStep === 'done') && (
+                <div className="flex flex-col items-center justify-center p-6 text-center gap-5 animate-in fade-in duration-200">
+                  
+                  {crawlerStep === 'ingesting' ? (
+                    <div className="w-14 h-14 rounded-full bg-iso-accent/15 border-2 border-iso-accent/30 flex items-center justify-center text-iso-primary shadow-xs">
+                      <Loader2 size={28} className="animate-spin text-iso-accent" />
+                    </div>
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-emerald-50 border-2 border-emerald-300 flex items-center justify-center text-emerald-600 shadow-xs">
+                      <CheckCircle2 size={28} />
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-1 max-w-lg">
+                    <h3 className="text-base font-serif font-bold text-iso-primary">
+                      {crawlerStep === 'ingesting' ? 'Batch Ingestion in Progress' : 'Batch Ingestion Completed!'}
+                    </h3>
+                    <p className="text-xs text-iso-textMuted font-mono">
+                      {crawlerStep === 'ingesting'
+                        ? `Scraping, chunking, and embedding: ${batchProgress.current} of ${batchProgress.total} URLs`
+                        : `Successfully vectorized and ingested ${batchProgress.successful} pages into vector index "${activeIndexName}".`}
+                    </p>
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div className="w-full max-w-lg flex flex-col gap-1.5">
+                    <div className="w-full h-3 bg-iso-bg border border-iso-border rounded-full overflow-hidden p-0.5">
+                      <div 
+                        className="h-full bg-iso-primary rounded-full transition-all duration-300 ease-out"
+                        style={{ width: `${batchProgress.total > 0 ? (batchProgress.current / batchProgress.total) * 100 : 0}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between text-[10px] font-mono text-iso-textMuted">
+                      <span>{batchProgress.total > 0 ? Math.round((batchProgress.current / batchProgress.total) * 100) : 0}% Completed</span>
+                      <span>Success: <strong className="text-emerald-600">{batchProgress.successful}</strong> • Failed: <strong className="text-rose-600">{batchProgress.failed}</strong></span>
+                    </div>
+                  </div>
+
+                  {/* Active URL Snippet */}
+                  {batchProgress.inProgress && batchProgress.currentUrl && (
+                    <div className="p-2.5 bg-iso-bg border border-iso-border rounded-sm text-[10px] font-mono text-iso-primary truncate max-w-lg w-full flex items-center gap-2">
+                      <Loader2 size={11} className="animate-spin shrink-0 text-iso-accent" />
+                      <span className="truncate">Ingesting: {batchProgress.currentUrl}</span>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+            </div>
+
+            {/* FIXED BOTTOM ACTIONS FOOTER (Pinned to Bottom of Dialog) */}
+            <div className="px-6 py-3 border-t border-iso-border bg-iso-bgSecondary/30 flex items-center justify-between shrink-0">
+              {crawlerStep === 'config' && (
+                <>
+                  <div className="text-[11px] font-mono text-iso-textMuted flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-iso-accent" />
+                    <span>Recursive crawl cap: up to 10,000 pages</span>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowCrawlerModal(false)}
+                      disabled={isCrawling}
+                      className="px-4 py-2 bg-iso-bgSecondary hover:bg-iso-bg border border-iso-border rounded-sm text-xs font-semibold cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleStartCrawl}
+                      disabled={isCrawling || !crawlStartUrl.trim() || !activeBotId}
+                      className="px-6 py-2 bg-iso-primary hover:bg-iso-primaryLight disabled:opacity-50 text-white rounded-sm text-xs font-bold border border-iso-primary flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                    >
+                      {isCrawling ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />
+                          <span>Crawling &amp; Discovering Links...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Compass size={14} />
+                          <span>Start Crawler &amp; Discover URLs</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {crawlerStep === 'results' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setCrawlerStep('config')}
+                    disabled={isCrawling || batchProgress.inProgress}
+                    className="px-3.5 py-1.5 bg-iso-bgSecondary hover:bg-iso-bg border border-iso-border rounded-sm text-xs font-semibold cursor-pointer disabled:opacity-50"
+                  >
+                    ← Back to Crawler Config
+                  </button>
+
+                  <div className="flex items-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowCrawlerModal(false)}
+                      disabled={isCrawling || batchProgress.inProgress}
+                      className="px-3.5 py-1.5 bg-iso-bgSecondary hover:bg-iso-bg border border-iso-border rounded-sm text-xs font-semibold cursor-pointer disabled:opacity-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleBatchIngestSubmit}
+                      disabled={selectedDiscoveredCount === 0 || isCrawling || batchProgress.inProgress}
+                      className="px-6 py-2 bg-iso-primary hover:bg-iso-primaryLight disabled:opacity-50 text-white rounded-sm text-xs font-bold border border-iso-primary flex items-center gap-2 shadow-md transition-all cursor-pointer"
+                    >
+                      <Sparkles size={14} />
+                      <span>Scrape &amp; Ingest Selected ({selectedDiscoveredCount} URLs)</span>
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {(crawlerStep === 'ingesting' || crawlerStep === 'done') && (
+                <>
+                  <div className="text-[11px] font-mono text-iso-textMuted">
+                    {crawlerStep === 'ingesting' ? 'Task running • View live telemetry in Sidebar Monitor' : 'All URLs processed successfully'}
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    {crawlerStep === 'ingesting' ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowCrawlerModal(false)}
+                        className="px-4 py-2 bg-iso-bgSecondary hover:bg-iso-bg border border-iso-border rounded-sm text-xs font-semibold cursor-pointer"
+                      >
+                        Run in Background
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowCrawlerModal(false)}
+                        className="px-6 py-2 bg-iso-primary text-white text-xs font-bold rounded-sm shadow-md hover:bg-iso-primaryLight transition-all cursor-pointer"
+                      >
+                        Done &amp; View Ingested Sources
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
           </div>
