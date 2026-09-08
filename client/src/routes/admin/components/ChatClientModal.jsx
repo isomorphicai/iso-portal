@@ -2,12 +2,6 @@ import React, { useState, useEffect } from "react";
 import { X, Sliders, Palette, MessageSquare, FormInput, Code, Save, Loader2, Bot as BotIcon } from "lucide-react";
 
 const DEFAULT_BOT_UI_CONFIGS = {
-  botMode: "chat",
-  botType: "chatbot",
-  isChatbot: true,
-  isVoicebot: false,
-  chatbot: true,
-  voicebot: false,
   botThemeColor: "#00306D",
   botHeaderTextColor: "#FFFFFF",
   botHeaderStatusColor: "#B0C4DE",
@@ -76,7 +70,6 @@ export default function ChatClientModal({
   useEffect(() => {
     if (isOpen) {
       if (editingBot) {
-        const isVoice = editingBot.voicebot === true || editingBot.isVoicebot === true || editingBot.botType === "voicebot" || editingBot.botUIConfigs?.botMode === "voice" || editingBot.botUIConfigs?.voicebot === true;
         setFormData({
           _id: editingBot._id,
           botId: editingBot.botId || editingBot.code || "",
@@ -85,28 +78,16 @@ export default function ChatClientModal({
           code: editingBot.code || editingBot.botId || "",
           description: editingBot.description || "",
           botActive: editingBot.botActive !== false,
-          botType: isVoice ? "voicebot" : "chatbot",
-          isChatbot: !isVoice,
-          isVoicebot: isVoice,
-          chatbot: !isVoice,
-          voicebot: isVoice,
           greetingMessage: Array.isArray(editingBot.greetingMessage) ? [...editingBot.greetingMessage] : ["Hi! How can I assist you today?"],
           quickReplies: Array.isArray(editingBot.quickReplies) ? [...editingBot.quickReplies] : (Array.isArray(editingBot.botUIConfigs?.starterQuestions) ? [...editingBot.botUIConfigs.starterQuestions] : ["Academic Assistance", "Technology Support", "Tuition & Financial Aid", "Advising Services"]),
           customForms: Array.isArray(editingBot.customForms) ? [...editingBot.customForms] : [],
           botUIConfigs: {
             ...DEFAULT_BOT_UI_CONFIGS,
-            botType: isVoice ? "voicebot" : "chatbot",
-            isChatbot: !isVoice,
-            isVoicebot: isVoice,
-            chatbot: !isVoice,
-            voicebot: isVoice,
-            botMode: isVoice ? "voice" : "chat",
             ...(editingBot.botUIConfigs || {})
           }
         });
       } else {
         const brandColor = activeTenant?.tenantConfig?.ButtonandLeftBarColor || "#00306D";
-        const tenantDefaultVoice = activeTenant?.tenantConfig?.voicebot === true || activeTenant?.tenantConfig?.isVoicebot === true || activeTenant?.tenantConfig?.botType === "voicebot";
         setFormData({
           _id: null,
           botId: "",
@@ -115,22 +96,11 @@ export default function ChatClientModal({
           code: "",
           description: "",
           botActive: true,
-          botType: tenantDefaultVoice ? "voicebot" : "chatbot",
-          isChatbot: !tenantDefaultVoice,
-          isVoicebot: tenantDefaultVoice,
-          chatbot: !tenantDefaultVoice,
-          voicebot: tenantDefaultVoice,
           greetingMessage: [`Hi! I am ${activeTenant?.name || "AI"} Assistant. How can I help you today?`],
           quickReplies: ["Academic Assistance", "Technology Support", "Tuition & Financial Aid", "Advising Services"],
           customForms: [],
           botUIConfigs: {
             ...DEFAULT_BOT_UI_CONFIGS,
-            botType: tenantDefaultVoice ? "voicebot" : "chatbot",
-            isChatbot: !tenantDefaultVoice,
-            isVoicebot: tenantDefaultVoice,
-            chatbot: !tenantDefaultVoice,
-            voicebot: tenantDefaultVoice,
-            botMode: tenantDefaultVoice ? "voice" : "chat",
             botThemeColor: brandColor,
             botHeaderText: `${activeTenant?.name || "ISO"} AI`
           }
@@ -147,27 +117,6 @@ export default function ChatClientModal({
       setJsonError(null);
     }
   }, [activeTab]);
-
-  const handleBotTypeChange = (type) => {
-    const isVoice = type === "voicebot";
-    setFormData(prev => ({
-      ...prev,
-      botType: isVoice ? "voicebot" : "chatbot",
-      isChatbot: !isVoice,
-      isVoicebot: isVoice,
-      chatbot: !isVoice,
-      voicebot: isVoice,
-      botUIConfigs: {
-        ...(prev.botUIConfigs || {}),
-        botType: isVoice ? "voicebot" : "chatbot",
-        isChatbot: !isVoice,
-        isVoicebot: isVoice,
-        chatbot: !isVoice,
-        voicebot: isVoice,
-        botMode: isVoice ? "voice" : "chat"
-      }
-    }));
-  };
 
   const updateUIField = (field, value) => {
     setFormData(prev => ({
@@ -260,15 +209,6 @@ export default function ChatClientModal({
       return;
     }
 
-    const isVoice = payload.voicebot === true || payload.isVoicebot === true || payload.botType === "voicebot" || payload.botUIConfigs?.botMode === "voice";
-    const isChat = !isVoice;
-
-    const botType = isVoice ? "voicebot" : "chatbot";
-    const isChatbot = isChat;
-    const isVoicebot = isVoice;
-    const chatbot = isChat;
-    const voicebot = isVoice;
-
     const targetId = activeTenant?._id || activeTenant?.tenantId || "";
     const targetDb = activeTenant?.tenantDbName || (activeTenant?.tenantId ? `iso_${activeTenant.tenantId}` : "");
     const method = payload._id ? "PUT" : "POST";
@@ -287,20 +227,6 @@ export default function ChatClientModal({
           botName: finalName,
           code: finalCode,
           botId: finalCode,
-          botType,
-          isChatbot,
-          isVoicebot,
-          chatbot,
-          voicebot,
-          botUIConfigs: {
-            ...(payload.botUIConfigs || {}),
-            botType,
-            isChatbot,
-            isVoicebot,
-            chatbot,
-            voicebot,
-            botMode: isVoice ? "voice" : "chat"
-          },
           status: payload.botActive !== false ? "active" : "inactive"
         })
       });
@@ -336,7 +262,7 @@ export default function ChatClientModal({
             </div>
             <div>
               <h2 className="text-base font-serif font-bold text-iso-primary">
-                {formData._id ? `Edit ${formData.voicebot || formData.botType === "voicebot" ? "Voicebot" : "Chatbot"}: ${formData.botName || formData.name}` : "Create New AI Assistant"}
+                {formData._id ? `Edit Chatbot: ${formData.botName || formData.name}` : "Create New Chatbot Assistant"}
               </h2>
               <p className="text-[11px] text-iso-textMuted font-mono">
                 Workspace: <span className="font-bold text-iso-accent">{activeTenant?.tenantDbName || `iso_${activeTenant?.tenantId}`}</span> &gt; chatClientSettings
@@ -357,7 +283,7 @@ export default function ChatClientModal({
               activeTab === "general" ? "border-iso-primary text-iso-primary font-bold" : "border-transparent text-iso-textMuted hover:text-iso-text"
             }`}
           >
-            <Sliders size={13} /> General &amp; Status
+            <Sliders size={13} /> General & Status
           </button>
           <button
             type="button"
@@ -366,7 +292,7 @@ export default function ChatClientModal({
               activeTab === "ui_theme" ? "border-iso-primary text-iso-primary font-bold" : "border-transparent text-iso-textMuted hover:text-iso-text"
             }`}
           >
-            <Palette size={13} /> Widget UI &amp; Colors
+            <Palette size={13} /> Widget UI & Colors
           </button>
           <button
             type="button"
@@ -375,7 +301,7 @@ export default function ChatClientModal({
               activeTab === "messages" ? "border-iso-primary text-iso-primary font-bold" : "border-transparent text-iso-textMuted hover:text-iso-text"
             }`}
           >
-            <MessageSquare size={13} /> Greetings &amp; Idle
+            <MessageSquare size={13} /> Greetings & Idle
           </button>
           <button
             type="button"
@@ -464,71 +390,6 @@ export default function ChatClientModal({
                       {formData.botActive ? <span className="text-emerald-700">ACTIVE BOT</span> : <span className="text-slate-500">INACTIVE</span>}
                     </span>
                   </div>
-                </div>
-              </div>
-
-              {/* Bot Experience Type: Chatbot or Voicebot */}
-              <div className="p-3.5 bg-iso-bg border border-iso-border rounded-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block font-semibold">
-                      Assistant Modality (Chatbot vs Voicebot) <span className="text-iso-accent">*</span>
-                    </label>
-                    <p className="text-[11px] text-iso-textMuted">Select whether this instance operates as a text Chatbot or speech Voicebot (saved in chatClientSettings).</p>
-                  </div>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-sm border bg-iso-bgSecondary text-iso-primary border-iso-border">
-                    {formData.voicebot || formData.botType === "voicebot" ? "🎙️ voicebot: true" : "💬 chatbot: true"}
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleBotTypeChange("chatbot")}
-                    className={`px-3.5 py-3 rounded-sm border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      !(formData.voicebot || formData.botType === "voicebot")
-                        ? "border-iso-accent bg-iso-accent/10 text-iso-primary shadow-xs ring-1 ring-iso-accent/40"
-                        : "border-iso-border bg-iso-cardBg text-iso-textMuted hover:border-iso-textMuted"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs flex items-center gap-2">
-                        💬 Text Chatbot
-                      </span>
-                      {!(formData.voicebot || formData.botType === "voicebot") ? (
-                        <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-mono rounded-xs font-bold">SELECTED (chatbot: true)</span>
-                      ) : (
-                        <span className="text-[10px] font-mono text-iso-textMuted">Click to select</span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-iso-textMuted mt-0.5">
-                      Standard text-based interactive chat window with launcher bubble, form inputs, and quick replies.
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleBotTypeChange("voicebot")}
-                    className={`px-3.5 py-3 rounded-sm border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      (formData.voicebot || formData.botType === "voicebot")
-                        ? "border-iso-accent bg-iso-accent/10 text-iso-primary shadow-xs ring-1 ring-iso-accent/40"
-                        : "border-iso-border bg-iso-cardBg text-iso-textMuted hover:border-iso-textMuted"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs flex items-center gap-2">
-                        🎙️ Voice AI Bot
-                      </span>
-                      {(formData.voicebot || formData.botType === "voicebot") ? (
-                        <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-mono rounded-xs font-bold">SELECTED (voicebot: true)</span>
-                      ) : (
-                        <span className="text-[10px] font-mono text-iso-textMuted">Click to select</span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-iso-textMuted mt-0.5">
-                      Speech-first conversational voice assistant with real-time voice streaming and speech synthesis.
-                    </span>
-                  </button>
                 </div>
               </div>
             </div>

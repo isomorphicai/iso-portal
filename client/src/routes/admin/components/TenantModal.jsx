@@ -28,12 +28,7 @@ const DEFAULT_TENANT_CONFIG = {
   logoSmallUrl: "",
   faviconUrl: "",
   showIntegrationTypeInChatHistory: true,
-  showJobQueueNotificationIcon: true,
-  botType: "chatbot",
-  isChatbot: true,
-  isVoicebot: false,
-  chatbot: true,
-  voicebot: false
+  showJobQueueNotificationIcon: true
 };
 
 export default function TenantModal({
@@ -53,7 +48,6 @@ export default function TenantModal({
   useEffect(() => {
     if (isOpen) {
       if (tenantData) {
-        const isVoice = tenantData.tenantConfig?.voicebot === true || tenantData.tenantConfig?.isVoicebot === true || tenantData.tenantConfig?.botType === "voicebot";
         setFormData({
           id: tenantData._id,
           name: tenantData.name || tenantData.tenantName || "",
@@ -65,12 +59,7 @@ export default function TenantModal({
           Bots: Array.isArray(tenantData.Bots) ? [...tenantData.Bots] : [],
           tenantConfig: {
             ...DEFAULT_TENANT_CONFIG,
-            ...(tenantData.tenantConfig || {}),
-            botType: isVoice ? "voicebot" : "chatbot",
-            isChatbot: !isVoice,
-            isVoicebot: isVoice,
-            chatbot: !isVoice,
-            voicebot: isVoice
+            ...(tenantData.tenantConfig || {})
           }
         });
       } else {
@@ -104,21 +93,6 @@ export default function TenantModal({
       tenantConfig: {
         ...(prev.tenantConfig || {}),
         [field]: value
-      }
-    }));
-  };
-
-  const handleBotTypeChange = (type) => {
-    const isVoice = type === "voicebot";
-    setFormData(prev => ({
-      ...prev,
-      tenantConfig: {
-        ...(prev.tenantConfig || {}),
-        botType: isVoice ? "voicebot" : "chatbot",
-        isChatbot: !isVoice,
-        isVoicebot: isVoice,
-        chatbot: !isVoice,
-        voicebot: isVoice
       }
     }));
   };
@@ -288,71 +262,6 @@ export default function TenantModal({
                   <select value={formData.tenantConfig?.timeZone || "America/New_York"} onChange={(e) => updateConfigField("timeZone", e.target.value)} className="w-full bg-iso-bg border border-iso-border focus:border-iso-accent rounded-sm px-3 py-2 text-xs text-iso-text outline-none cursor-pointer">
                     {TIMEZONE_OPTIONS.map(tz => <option key={tz} value={tz}>{tz}</option>)}
                   </select>
-                </div>
-              </div>
-
-              {/* Bot Experience Type: Chatbot or Voicebot */}
-              <div className="p-3.5 bg-iso-bg border border-iso-border rounded-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block font-semibold">
-                      Default Bot Experience Type (Chatbot vs Voicebot) <span className="text-iso-accent">*</span>
-                    </label>
-                    <p className="text-[11px] text-iso-textMuted">Select whether this tenant uses an interactive text Chatbot or speech-first Voicebot by default.</p>
-                  </div>
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-sm border bg-iso-bgSecondary text-iso-primary border-iso-border">
-                    {formData.tenantConfig?.voicebot || formData.tenantConfig?.botType === "voicebot" ? "🎙️ voicebot: true" : "💬 chatbot: true"}
-                  </span>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleBotTypeChange("chatbot")}
-                    className={`px-3.5 py-3 rounded-sm border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      !(formData.tenantConfig?.voicebot || formData.tenantConfig?.botType === "voicebot")
-                        ? "border-iso-accent bg-iso-accent/10 text-iso-primary shadow-xs ring-1 ring-iso-accent/40"
-                        : "border-iso-border bg-iso-cardBg text-iso-textMuted hover:border-iso-textMuted"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs flex items-center gap-2">
-                        💬 Text Chatbot
-                      </span>
-                      {!(formData.tenantConfig?.voicebot || formData.tenantConfig?.botType === "voicebot") ? (
-                        <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-mono rounded-xs font-bold">SELECTED (chatbot: true)</span>
-                      ) : (
-                        <span className="text-[10px] font-mono text-iso-textMuted">Click to select</span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-iso-textMuted mt-0.5">
-                      Standard text-based AI conversational widget with chat bubble, quick replies, and rich forms.
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleBotTypeChange("voicebot")}
-                    className={`px-3.5 py-3 rounded-sm border text-left flex flex-col gap-1 transition-all cursor-pointer ${
-                      (formData.tenantConfig?.voicebot || formData.tenantConfig?.botType === "voicebot")
-                        ? "border-iso-accent bg-iso-accent/10 text-iso-primary shadow-xs ring-1 ring-iso-accent/40"
-                        : "border-iso-border bg-iso-cardBg text-iso-textMuted hover:border-iso-textMuted"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs flex items-center gap-2">
-                        🎙️ Voice AI Bot
-                      </span>
-                      {(formData.tenantConfig?.voicebot || formData.tenantConfig?.botType === "voicebot") ? (
-                        <span className="px-1.5 py-0.5 bg-emerald-600 text-white text-[9px] font-mono rounded-xs font-bold">SELECTED (voicebot: true)</span>
-                      ) : (
-                        <span className="text-[10px] font-mono text-iso-textMuted">Click to select</span>
-                      )}
-                    </div>
-                    <span className="text-[11px] text-iso-textMuted mt-0.5">
-                      Speech-first AI voice assistant designed for interactive telephony, speech input, and audible answers.
-                    </span>
-                  </button>
                 </div>
               </div>
 
