@@ -19,6 +19,7 @@ export default function Login({ onLoginSuccess, showToast }) {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotError, setForgotError] = useState(null);
   const [forgotSuccess, setForgotSuccess] = useState(null);
+  const [forgotResetLink, setForgotResetLink] = useState(null);
 
   // Reset Password State
   const [resetToken, setResetToken] = useState('');
@@ -220,6 +221,7 @@ export default function Login({ onLoginSuccess, showToast }) {
 
       if (res.ok) {
         setForgotSuccess(data.message || 'Password reset link has been sent to your email.');
+        setForgotResetLink(data.resetLink || null);
       } else {
         setForgotError(data.error || 'Failed to process password reset request.');
       }
@@ -553,16 +555,33 @@ export default function Login({ onLoginSuccess, showToast }) {
                 <div className="flex items-start gap-2.5">
                   <CheckCircle2 size={18} className="text-emerald-600 shrink-0 mt-0.5" />
                   <div className="text-xs">
-                    <span className="font-bold block text-emerald-800 text-[13px] mb-1">Reset Link Sent!</span>
+                    <span className="font-bold block text-emerald-800 text-[13px] mb-1">
+                      {forgotResetLink ? 'Reset Link Ready!' : 'Reset Link Sent!'}
+                    </span>
                     <span>{forgotSuccess}</span>
                   </div>
                 </div>
+
+                {forgotResetLink && (
+                  <div className="mt-1 p-3 bg-white border border-emerald-200 rounded text-xs flex flex-col gap-2 shadow-xs">
+                    <span className="text-[11px] text-slate-600">
+                      Cloud host blocked direct outbound SMTP socket. You can click below to reset your password directly:
+                    </span>
+                    <a
+                      href={forgotResetLink}
+                      className="w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-xs text-center transition-colors shadow-xs"
+                    >
+                      Reset Password Now &rarr;
+                    </a>
+                  </div>
+                )}
 
                 <button
                   type="button"
                   onClick={() => {
                     setViewMode('login');
                     setForgotSuccess(null);
+                    setForgotResetLink(null);
                   }}
                   className="mt-2 w-full py-2 rounded-sm text-xs font-bold border text-center transition-all cursor-pointer hover:opacity-90"
                   style={{
