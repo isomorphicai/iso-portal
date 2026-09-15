@@ -95,10 +95,7 @@ export default function Login({ onLoginSuccess, showToast }) {
     setTenantFetchError(null);
 
     try {
-      const res = await fetch(apiUrl(`/api/tenant/branding/${encodeURIComponent(slug)}?_t=${Date.now()}`), {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache' }
-      });
+      const res = await fetch(apiUrl(`/api/tenant/branding/${encodeURIComponent(slug)}?_t=${Date.now()}`));
       const data = await res.json();
 
       if (res.ok && data && (data.tenantConfig || data.tenantName)) {
