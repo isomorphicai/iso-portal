@@ -20,8 +20,10 @@ export default function Analytics({
   showToast 
 }) {
   // Context Selection States
+  const isGlobalAdmin = currentUser?.role === 'global_admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.isGlobalAdmin || currentUser?.tenantId === 'admin';
+
   const [activeTenantId, setActiveTenantId] = useState(() => {
-    return selectedTenant?.tenantId || selectedTenant?.code || 'all';
+    return selectedTenant?.tenantId || selectedTenant?.code || currentUser?.tenantId || (isGlobalAdmin ? 'all' : '');
   });
   const [activeBotId, setActiveBotId] = useState('all');
   const [timeRange, setTimeRange] = useState('30d');
@@ -39,7 +41,6 @@ export default function Analytics({
   const [sessionsPage, setSessionsPage] = useState(1);
 
   // Role-Based Widget Permissions
-  const isGlobalAdmin = currentUser?.role === 'global_admin' || currentUser?.role === 'super_admin' || currentUser?.isGlobalAdmin;
   const roleAllowedWidgets = currentUser?.allowedWidgets || [];
 
   const isWidgetVisible = (widgetId) => {
@@ -253,7 +254,7 @@ export default function Analytics({
               setActiveBotId('all');
             }}
             options={[
-              { value: 'all', label: 'All Organizations', badge: `${tenants.length}` },
+              ...(isGlobalAdmin && tenants.length > 1 ? [{ value: 'all', label: 'All Organizations', badge: `${tenants.length}` }] : []),
               ...tenants.map(t => ({
                 value: t.tenantId || t.code,
                 label: t.name || t.tenantName || t.tenantId,

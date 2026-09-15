@@ -6,7 +6,8 @@ import {
   FileText, ExternalLink, Bot, Building2, ListFilter, Send,
   Compass, Layers, Filter, Check, CheckSquare, Square, Shield,
   Radio, CornerDownRight, Link2, Sliders, ArrowRight, Server,
-  CheckCircle, AlertCircle
+  CheckCircle, AlertCircle, Clock, Terminal, Play, Ban,
+  ChevronDown, ChevronUp, Activity
 } from 'lucide-react';
 import ConfirmModal from '../../components/ConfirmModal';
 import CustomDropdown from '../../components/CustomDropdown';
@@ -21,8 +22,14 @@ export default function Ingestion({
   bots = [], 
   showToast 
 }) {
-  // Top Ingestion Subtabs: "sources" | "tester"
+  // Top Ingestion Subtabs: "sources" | "operations" | "tester"
   const [activeTab, setActiveTab] = useState('sources');
+
+  // Active Live Operations / Crawler Tasks
+  const [operations, setOperations] = useState([]);
+  const [loadingOperations, setLoadingOperations] = useState(false);
+  const [activeOperationsCount, setActiveOperationsCount] = useState(0);
+  const [expandedLogJobId, setExpandedLogJobId] = useState(null);
 
   // Active context selection strictly using tenantId and botId
   const [activeTenantId, setActiveTenantId] = useState('');
@@ -161,6 +168,88 @@ export default function Ingestion({
     } finally {
       setLoadingSources(false);
     }
+  };
+
+  // Poll active & recent crawler/ingestion jobs
+  const fetchOperations = async () => {
+    if (!activeTenantId) return;
+    try {
+      const res = await fetch(`/api/ingestion/jobs/active?tenantId=${encodeURIComponent(activeTenantId)}&botId=${encodeURIComponent(activeBotId || '')}`);
+      const data = await res.json();
+      if (data && Array.isArray(data.jobs)) {
+        setOperations(data.jobs);
+        setActiveOperationsCount(data.activeCount || 0);
+      }
+    } catch (e) {}
+  };
+
+  useEffect(() => {
+    fetchOperations();
+    const interval = setInterval(fetchOperations, 3500);
+    return () => clearInterval(interval);
+  }, [activeTenantId, activeBotId]);
+
+  const handleCancelJob = async (jobId) => {
+    try {
+      const res = await fetch(`/api/ingestion/jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        showToast('Operation cancelled.');
+        fetchOperations();
+      } else {
+        showToast(data.error || 'Failed to cancel operation.', 'error');
+      }
+    } catch (e) {
+      showToast('Error cancelling operation.', 'error');
+    }
+  };
+
+  const handleDeleteJob = async (jobId) => {
+    try {
+      const res = await fetch(`/api/ingestion/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' });
+      if (res.ok) {
+        setOperations(prev => prev.filter(j => j.id !== jobId));
+        showToast('Task removed from history.');
+      }
+    } catch (e) {
+      showToast('Error deleting task.', 'error');
+    }
+  };
+
+  const handleClearCompletedJobs = async () => {
+    try {
+      const res = await fetch('/api/ingestion/jobs/clear-completed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId: activeTenantId, botId: activeBotId })
+      });
+      if (res.ok) {
+        fetchOperations();
+        showToast('Cleared completed tasks.');
+      }
+    } catch (e) {
+      showToast('Error clearing tasks.', 'error');
+    }
+  };
+
+  const handleInspectDiscoveredUrls = (job) => {
+    if (!job) return;
+    let list = [];
+    if (job?.result?.discoveredUrls && Array.isArray(job.result.discoveredUrls) && job.result.discoveredUrls.length > 0) {
+      list = job.result.discoveredUrls.map((u, idx) => ({ ...u, id: idx, selected: u.status !== 'error' }));
+    } else if (job?.discoveredUrls && Array.isArray(job.discoveredUrls) && job.discoveredUrls.length > 0) {
+      list = job.discoveredUrls.map((u, idx) => ({ ...u, id: idx, selected: u.status !== 'error' }));
+    }
+    if (job?.params?.startUrl) setCrawlStartUrl(job.params.startUrl);
+    else if (job?.result?.startUrl) setCrawlStartUrl(job.result.startUrl);
+    if (job?.params?.maxDepth) setCrawlDepth(job.params.maxDepth);
+    else if (job?.result?.maxDepth) setCrawlDepth(job.result.maxDepth);
+    if (job?.params?.maxPages) setCrawlMaxPages(job.params.maxPages);
+    else if (job?.result?.maxPages) setCrawlMaxPages(job.result.maxPages);
+
+    setDiscoveredUrls(list);
+    setCrawlerStep('results');
+    setShowCrawlerModal(true);
   };
 
   const handleOpenIngestModal = () => {
@@ -754,7 +843,7 @@ export default function Ingestion({
         <span className="text-[10px] font-mono text-blue-700">Multi-Tenant Isolated</span>
       </div>
 
-      {/* SUB-TABS NAVIGATION (Ingested URLs | RAG Search Verification Tester) */}
+      {/* SUB-TABS NAVIGATION (Ingested URLs | Live Operations & Crawler Tasks | RAG Search Verification Tester) */}
       <div className="flex items-center justify-between border-b border-iso-border pb-1">
         <div className="flex gap-2">
           <button
@@ -768,6 +857,25 @@ export default function Ingestion({
           >
             <ListFilter size={16} /> Ingested URLs ({sources.length})
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('operations')}
+            className={`px-4 py-2 font-serif text-sm font-bold border-b-2 transition-all flex items-center gap-2 cursor-pointer relative ${
+              activeTab === 'operations'
+                ? 'border-iso-primary text-iso-primary'
+                : 'border-transparent text-iso-textMuted hover:text-iso-text'
+            }`}
+          >
+            <Activity size={16} className={activeOperationsCount > 0 ? 'text-emerald-600 animate-pulse' : 'text-iso-accent'} />
+            <span>Live Operations &amp; Crawled URLs ({operations.length})</span>
+            {activeOperationsCount > 0 && (
+              <span className="px-1.5 py-0.2 bg-emerald-600 text-white text-[9px] font-mono rounded-full font-bold animate-pulse">
+                {activeOperationsCount} RUNNING
+              </span>
+            )}
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab('tester')}
@@ -1051,7 +1159,245 @@ export default function Ingestion({
       )}
 
       {/* ========================================================================= */}
-      {/* SUBTAB 2: RAG SEARCH VERIFICATION TESTER */}
+      {/* SUBTAB 2: LIVE OPERATIONS & CRAWLER TASKS */}
+      {/* ========================================================================= */}
+      {activeTab === 'operations' && (
+        <div className="flex flex-col gap-4">
+          
+          {/* Operations Controls Header */}
+          <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-iso-cardBg p-3 border border-iso-border rounded-sm shadow-xs">
+            <div className="flex items-center gap-2">
+              <Activity size={16} className="text-iso-accent" />
+              <div>
+                <h3 className="text-xs font-bold text-iso-primary">Crawler &amp; Ingestion Job Queue</h3>
+                <p className="text-[10px] text-iso-textMuted font-mono">
+                  {operations.length} tracked task(s) • Auto-polling every 3.5s
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {operations.some(j => j.status === 'completed' || j.status === 'failed' || j.status === 'cancelled') && (
+                <button
+                  type="button"
+                  onClick={handleClearCompletedJobs}
+                  className="px-2.5 py-1.5 text-xs text-iso-textMuted hover:text-iso-error border border-iso-border hover:border-iso-error/30 rounded-sm hover:bg-iso-errorBg/20 transition-all cursor-pointer font-mono"
+                >
+                  Clear Completed
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={fetchOperations}
+                className="p-1.5 text-iso-textMuted hover:text-iso-primary border border-iso-border rounded-sm hover:bg-iso-bgSecondary transition-all cursor-pointer shadow-2xs"
+                title="Refresh Tasks"
+              >
+                <RefreshCw size={13} className={loadingOperations ? 'animate-spin' : ''} />
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenCrawlerModal}
+                className="px-3.5 py-1.5 bg-iso-primary hover:bg-iso-primaryLight text-white rounded-sm text-xs font-bold border border-iso-primary flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+              >
+                <Compass size={14} />
+                <span>Launch Web Crawler</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Operations List */}
+          {operations.length === 0 ? (
+            <div className="bg-iso-cardBg border border-iso-border rounded-sm p-12 text-center flex flex-col items-center justify-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-iso-bgSecondary border border-iso-border flex items-center justify-center text-iso-textMuted">
+                <Activity size={22} />
+              </div>
+              <div className="max-w-md">
+                <h4 className="text-sm font-bold text-iso-primary">No Active Crawler Tasks or Operations</h4>
+                <p className="text-xs text-iso-textMuted mt-1">
+                  When you run a recursive website crawl or batch ingestion, live progress, discovered links, and logs will appear here in real time.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenCrawlerModal}
+                className="mt-2 px-4 py-2 bg-iso-primary hover:bg-iso-primaryLight text-white rounded-sm text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm"
+              >
+                <Compass size={14} />
+                <span>Start Website Crawl</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {operations.map((job) => {
+                const isRunning = job.status === 'running' || job.status === 'pending';
+                const isCompleted = job.status === 'completed';
+                const isFailed = job.status === 'failed';
+                const isCancelled = job.status === 'cancelled';
+                const percent = job.progress?.percent !== undefined ? job.progress.percent : (isCompleted ? 100 : 0);
+                
+                const discoveredList = job?.result?.discoveredUrls || job?.discoveredUrls || [];
+                const discoveredCount = discoveredList.length || (job.result?.totalDiscovered || 0);
+                const hasDiscoveredUrls = discoveredCount > 0;
+                const startUrl = job.params?.startUrl || job.result?.startUrl || job.targetUrl || '';
+
+                return (
+                  <div 
+                    key={job.id} 
+                    className="bg-iso-cardBg border border-iso-border rounded-sm p-4 shadow-sm flex flex-col gap-3 transition-all hover:border-iso-accent/60"
+                  >
+                    {/* Job Card Top Row */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-iso-border/60 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-iso-bgSecondary border border-iso-border rounded text-[10px] font-mono font-bold uppercase tracking-wider text-iso-primary flex items-center gap-1">
+                          {job.type === 'website_crawl' ? <Compass size={11} className="text-iso-accent" /> : <Layers size={11} className="text-iso-primary" />}
+                          <span>{job.type?.replace('_', ' ') || 'Operation'}</span>
+                        </span>
+
+                        <span className={`px-2 py-0.5 text-[10px] font-mono rounded font-bold uppercase tracking-wider border flex items-center gap-1 ${
+                          isRunning 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300' 
+                            : isCompleted 
+                            ? 'bg-blue-50 text-blue-700 border-blue-300'
+                            : isFailed
+                            ? 'bg-rose-50 text-rose-700 border-rose-300'
+                            : 'bg-slate-100 text-slate-600 border-slate-300'
+                        }`}>
+                          {isRunning && <Loader2 size={10} className="animate-spin" />}
+                          {isCompleted && <CheckCircle size={10} />}
+                          {isFailed && <AlertCircle size={10} />}
+                          {isCancelled && <Ban size={10} />}
+                          <span>{job.status}</span>
+                        </span>
+
+                        <span className="text-[10px] font-mono text-iso-textMuted">
+                          ID: {job.id}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2 text-[10px] font-mono text-iso-textMuted">
+                        <span className="flex items-center gap-1">
+                          <Clock size={11} />
+                          <span>{job.createdAt ? new Date(job.createdAt).toLocaleTimeString() : 'Just now'}</span>
+                        </span>
+
+                        {isRunning && (
+                          <button
+                            type="button"
+                            onClick={() => handleCancelJob(job.id)}
+                            className="px-2 py-0.5 bg-rose-50 text-rose-700 border border-rose-300 hover:bg-rose-100 rounded text-[10px] font-bold cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        )}
+
+                        {!isRunning && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteJob(job.id)}
+                            className="p-1 text-iso-textMuted hover:text-rose-600 cursor-pointer"
+                            title="Remove task from history"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Job Details & Start URL */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="flex flex-col gap-1 min-w-0 flex-1">
+                        {startUrl && (
+                          <div className="flex items-center gap-1.5 truncate">
+                            <span className="text-[10px] font-mono uppercase text-iso-textMuted font-bold">Target:</span>
+                            <a 
+                              href={startUrl} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="text-iso-primary hover:underline font-mono truncate text-xs font-semibold flex items-center gap-1"
+                            >
+                              <span>{startUrl}</span>
+                              <ExternalLink size={10} className="shrink-0 text-iso-textMuted" />
+                            </a>
+                          </div>
+                        )}
+
+                        <div className="text-[11px] text-iso-textMuted font-mono">
+                          {job.progress?.currentUrl ? (
+                            <span className="truncate block">Current page: {job.progress.currentUrl}</span>
+                          ) : job.result?.message ? (
+                            <span>{job.result.message}</span>
+                          ) : (
+                            <span>Processed {job.progress?.current || 0} of {job.progress?.total || 0} pages</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Discovered URLs Action Button */}
+                      {hasDiscoveredUrls && (
+                        <button
+                          type="button"
+                          onClick={() => handleInspectDiscoveredUrls(job)}
+                          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-sm text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all cursor-pointer shrink-0"
+                        >
+                          <Compass size={13} />
+                          <span>View Discovered URLs ({discoveredCount})</span>
+                          <ArrowRight size={12} />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-center text-[10px] font-mono text-iso-textMuted">
+                        <span>{isRunning ? 'Crawling & extracting internal links...' : isCompleted ? 'Execution finished' : 'Stopped'}</span>
+                        <span className="font-bold text-iso-primary">{percent}%</span>
+                      </div>
+                      <div className="w-full bg-iso-bgSecondary h-2 rounded-full overflow-hidden border border-iso-border">
+                        <div 
+                          className={`h-full transition-all duration-300 ${
+                            isFailed ? 'bg-rose-500' : isCompleted ? 'bg-blue-600' : 'bg-emerald-500'
+                          }`}
+                          style={{ width: `${Math.max(4, Math.min(100, percent))}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Collapsible Log Stream */}
+                    {job.logs && job.logs.length > 0 && (
+                      <div className="border-t border-iso-border/40 pt-2 flex flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedLogJobId(expandedLogJobId === job.id ? null : job.id)}
+                          className="flex items-center gap-1.5 text-[10px] font-mono text-iso-textMuted hover:text-iso-primary cursor-pointer w-fit"
+                        >
+                          <Terminal size={11} />
+                          <span>{expandedLogJobId === job.id ? 'Hide Execution Logs' : `View Logs (${job.logs.length} entries)`}</span>
+                          {expandedLogJobId === job.id ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                        </button>
+
+                        {expandedLogJobId === job.id && (
+                          <pre className="bg-slate-900 text-emerald-400 p-3 rounded text-[10px] font-mono max-h-40 overflow-y-auto leading-relaxed border border-slate-800">
+                            {job.logs.map((l, idx) => (
+                              <div key={idx}>{typeof l === 'string' ? l : `[${l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : ''}] ${l.message || JSON.stringify(l)}`}</div>
+                            ))}
+                          </pre>
+                        )}
+                      </div>
+                    )}
+
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* SUBTAB 3: RAG SEARCH VERIFICATION TESTER */}
       {/* ========================================================================= */}
       {activeTab === 'tester' && (
         <div className="bg-iso-cardBg border border-iso-border rounded-sm p-6 shadow-sm flex flex-col gap-4">

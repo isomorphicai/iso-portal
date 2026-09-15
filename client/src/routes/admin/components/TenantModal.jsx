@@ -458,6 +458,27 @@ export default function TenantModal({
                   </div>
                 </div>
 
+                {/* Disabled Button Color */}
+                <div className="p-3 bg-iso-bg border border-iso-border rounded-sm">
+                  <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">Disabled / Loading Button Color</label>
+                  <div className="flex items-center gap-2">
+                    <input type="color" value={cfg.disableButtonColor || "#c1c1c1"} onChange={(e) => updateConfigField("disableButtonColor", e.target.value)} className="w-8 h-8 rounded border border-iso-border cursor-pointer p-0 bg-transparent shrink-0" />
+                    <input type="text" value={cfg.disableButtonColor || "#c1c1c1"} onChange={(e) => updateConfigField("disableButtonColor", e.target.value)} className="w-full bg-iso-cardBg border border-iso-border rounded px-2 py-1 text-xs font-mono text-iso-text outline-none" />
+                  </div>
+                </div>
+
+                {/* Header Font Size */}
+                <div className="p-3 bg-iso-bg border border-iso-border rounded-sm">
+                  <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">Header / Brand Title Font Size</label>
+                  <input type="text" value={cfg.allHeaderFontSize || "1.6rem"} onChange={(e) => updateConfigField("allHeaderFontSize", e.target.value)} placeholder="e.g. 1.6rem, 24px" className="w-full bg-iso-cardBg border border-iso-border rounded px-3 py-1.5 text-xs font-mono text-iso-text outline-none" />
+                </div>
+
+                {/* Subtitle / Title Font Size */}
+                <div className="p-3 bg-iso-bg border border-iso-border rounded-sm">
+                  <label className="text-[10px] uppercase font-mono tracking-wider text-iso-textMuted block mb-1.5 font-semibold">Subtitle / Body Font Size</label>
+                  <input type="text" value={cfg.allTitleFontSize || "0.75rem"} onChange={(e) => updateConfigField("allTitleFontSize", e.target.value)} placeholder="e.g. 0.75rem, 12px" className="w-full bg-iso-cardBg border border-iso-border rounded px-3 py-1.5 text-xs font-mono text-iso-text outline-none" />
+                </div>
+
               </div>
 
               {/* LIVE LOGIN SCREEN PREVIEW CARD */}
@@ -485,7 +506,13 @@ export default function TenantModal({
                   )}
 
                   {/* Mockup Login Dialog Card */}
-                  <div className="relative z-10 w-full max-w-xs bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-md p-5 shadow-xl border border-slate-200 dark:border-slate-800 flex flex-col gap-3">
+                  <div 
+                    className="relative z-10 w-full max-w-xs backdrop-blur-md rounded-md p-5 shadow-xl border flex flex-col gap-3"
+                    style={{
+                      backgroundColor: cfg.loginBackgroundColor || '#ffffff',
+                      borderColor: cfg.BordersColor ? (cfg.BordersColor.length === 7 ? `${cfg.BordersColor}50` : cfg.BordersColor) : '#E2DFD6'
+                    }}
+                  >
                     {/* Mock Logo */}
                     <div className="flex flex-col items-center text-center">
                       {cfg.logoBigUrl ? (

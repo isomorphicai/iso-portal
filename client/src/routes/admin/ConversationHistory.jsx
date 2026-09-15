@@ -148,10 +148,13 @@ const DATE_PRESET_OPTIONS = [
 export default function ConversationHistory({ 
   tenants = [], 
   selectedTenant, 
-  showToast 
+  showToast,
+  currentUser 
 }) {
+  const isGlobalUser = currentUser?.role === 'global_admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.isGlobalAdmin || currentUser?.tenantId === 'admin';
+
   const [tenantList, setTenantList] = useState(tenants || []);
-  const [selectedTenantId, setSelectedTenantId] = useState('all');
+  const [selectedTenantId, setSelectedTenantId] = useState(selectedTenant?.tenantId || selectedTenant?.code || currentUser?.tenantId || (isGlobalUser ? 'all' : ''));
   const [selectedBotId, setSelectedBotId] = useState('all');
   const [availableBots, setAvailableBots] = useState([]);
   const [loadingBots, setLoadingBots] = useState(false);
@@ -186,23 +189,37 @@ export default function ConversationHistory({
   useEffect(() => {
     if (tenants && tenants.length > 0) {
       setTenantList(tenants);
+      if (!isGlobalUser && currentUser?.tenantId) {
+        setSelectedTenantId(currentUser.tenantId);
+      }
     } else {
-      fetch('/api/admin/tenants')
+      const q = (!isGlobalUser && currentUser?.tenantId) ? `?tenantId=${encodeURIComponent(currentUser.tenantId)}` : '';
+      fetch(`/api/admin/tenants${q}`)
         .then(r => r.json())
         .then(data => {
-          if (Array.isArray(data)) setTenantList(data);
+          if (Array.isArray(data)) {
+            const list = (!isGlobalUser && currentUser?.tenantId)
+              ? data.filter(t => (t.tenantId === currentUser.tenantId || t.code === currentUser.tenantId || t._id === currentUser.tenantId))
+              : data;
+            setTenantList(list);
+            if (!isGlobalUser && currentUser?.tenantId) {
+              setSelectedTenantId(currentUser.tenantId);
+            }
+          }
         })
         .catch(() => {});
     }
-  }, [tenants]);
+  }, [tenants, currentUser, isGlobalUser]);
 
   // Sync with prop selectedTenant
   useEffect(() => {
     if (selectedTenant) {
       const tId = selectedTenant.tenantId || selectedTenant.code;
       if (tId) setSelectedTenantId(tId);
+    } else if (!isGlobalUser && currentUser?.tenantId) {
+      setSelectedTenantId(currentUser.tenantId);
     }
-  }, [selectedTenant]);
+  }, [selectedTenant, currentUser, isGlobalUser]);
 
   // 2. Fetch Bots when selectedTenantId changes
   useEffect(() => {
@@ -483,7 +500,7 @@ export default function ConversationHistory({
 
   // Dropdown options
   const tenantOptions = [
-    { value: 'all', label: 'All Organizations', badge: `${tenantList.length}` },
+    ...(isGlobalUser && tenantList.length > 1 ? [{ value: 'all', label: 'All Organizations', badge: `${tenantList.length}` }] : []),
     ...tenantList.map(t => ({
       value: t.tenantId || t.code,
       label: t.tenantName || t.name || t.tenantId,

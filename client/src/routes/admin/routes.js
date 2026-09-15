@@ -11,7 +11,8 @@ export const adminRoutes = [
     path: 'tenants',
     label: 'Tenants',
     icon: Building2,
-    component: TenantsList
+    component: TenantsList,
+    superAdminOnly: true
   },
   {
     path: 'system_settings',

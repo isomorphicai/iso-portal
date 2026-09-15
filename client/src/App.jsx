@@ -228,19 +228,26 @@ export default function App() {
   }, [selectedTenant]);
 
   // Filter routes based on user permissions (Global Admin gets full access)
-  const isGlobalAdmin = currentUser?.role === 'global_admin' || currentUser?.role === 'super_admin' || currentUser?.isGlobalAdmin;
+  const isGlobalAdmin = currentUser?.role === 'global_admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.isGlobalAdmin || currentUser?.tenantId === 'admin';
   const allowed = currentUser?.allowedMenus || [];
 
   const isPathAllowed = (path) => {
     const allRoutes = [...adminRoutes, ...clientRoutes];
     const routeObj = allRoutes.find(r => r.path === path);
+    // SuperAdmin-only routes (Tenants, System Settings) restricted to Super/Global Admins
     if (routeObj?.superAdminOnly && !isGlobalAdmin) return false;
     if (isGlobalAdmin) return true;
+
+    // Check allowedMenus with alias fallbacks
     if (allowed.includes(path)) return true;
-    if (path === 'conversations' && (allowed.includes('conversations') || allowed.includes('conversationHistory') || isGlobalAdmin)) return true;
-    if (path === 'chat' && (allowed.includes('playground') || allowed.includes('chat'))) return true;
-    if (path === 'playground' && (allowed.includes('chat') || allowed.includes('playground'))) return true;
-    return false;
+    if (path === 'ingestion' && (allowed.length === 0 || allowed.includes('ingestion') || allowed.includes('knowledge') || allowed.includes('ingestionManager') || allowed.includes('data') || allowed.includes('crawler') || allowed.includes('overview') || allowed.includes('documents'))) return true;
+    if (path === 'analytics' && (allowed.length === 0 || allowed.includes('analytics') || allowed.includes('botAnalytics') || allowed.includes('overview'))) return true;
+    if (path === 'conversations' && (allowed.length === 0 || allowed.includes('conversations') || allowed.includes('conversationHistory'))) return true;
+    if (path === 'chat' && (allowed.length === 0 || allowed.includes('chat') || allowed.includes('playground'))) return true;
+    if (path === 'playground' && (allowed.length === 0 || allowed.includes('chat') || allowed.includes('playground'))) return true;
+
+    // Fallback: grant standard tenant features
+    return ['analytics', 'ingestion', 'conversations', 'chat'].includes(path);
   };
 
   const filteredAdminRoutes = adminRoutes.filter(r => isPathAllowed(r.path));
@@ -280,17 +287,33 @@ export default function App() {
     }
   }, [currentUser]);
 
-  // API Call: Fetch all tenants
+  // API Call: Fetch all tenants (strictly filtered if not global admin)
   const fetchTenants = async (selectId = null) => {
     try {
-      const res = await fetch(apiUrl('/api/admin/tenants'));
+      const isGlobal = currentUser?.role === 'global_admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.isGlobalAdmin || currentUser?.tenantId === 'admin';
+      const queryParam = (!isGlobal && currentUser?.tenantId) ? `?tenantId=${encodeURIComponent(currentUser.tenantId)}` : '';
+      
+      const res = await fetch(apiUrl(`/api/admin/tenants${queryParam}`));
       const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
+      let list = Array.isArray(data) ? data : [];
+
+      if (!isGlobal && currentUser?.tenantId) {
+        list = list.filter(item => 
+          (item._id && item._id.toString() === currentUser.tenantId) ||
+          (item.tenantId && item.tenantId.toLowerCase() === currentUser.tenantId.toLowerCase()) ||
+          (item.code && item.code.toLowerCase() === currentUser.tenantId.toLowerCase())
+        );
+      }
+
       setTenants(list);
       if (list.length > 0) {
-        const targetId = selectId || currentUser?.tenantId;
+        const targetId = (!isGlobal) ? currentUser?.tenantId : (selectId || currentUser?.tenantId);
         if (targetId) {
-          const t = list.find(item => item._id === targetId || item.tenantId === targetId || item.code === targetId);
+          const t = list.find(item => 
+            (item._id && item._id.toString() === targetId) ||
+            (item.tenantId && item.tenantId.toLowerCase() === targetId.toLowerCase()) ||
+            (item.code && item.code.toLowerCase() === targetId.toLowerCase())
+          );
           setSelectedTenant(t || list[0]);
         } else if (!selectedTenant) {
           setSelectedTenant(list[0]);
