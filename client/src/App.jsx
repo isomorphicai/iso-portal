@@ -375,6 +375,16 @@ export default function App() {
   // Locate the active route configuration
   const activeRoute = portalRoutes.find(r => r.path === activeRoutePath);
 
+  // Safe navigation handler that adjusts portal selection if needed
+  const handleNavigate = (path) => {
+    if (adminRoutes.some(r => r.path === path)) {
+      setSelectedPortal('admin');
+    } else if (clientRoutes.some(r => r.path === path)) {
+      setSelectedPortal('client');
+    }
+    setActiveRoutePath(path);
+  };
+
   return (
     <div className="h-screen w-screen bg-iso-bg text-iso-text font-sans flex overflow-hidden">
       
@@ -403,6 +413,8 @@ export default function App() {
           selectedPortal={selectedPortal}
           activeRoute={activeRoute}
           currentUser={currentUser}
+          onNavigate={handleNavigate}
+          showToast={showToast}
           onLogout={() => handleLogout('manual')}
         />
         
