@@ -313,6 +313,21 @@ export default function Login({ onLoginSuccess, showToast }) {
   const titleFontSize = cfg.allTitleFontSize || '0.75rem';
   const disableBtnColor = cfg.disableButtonColor || '#c1c1c1';
 
+  // Full-page loader while resolving and loading organization branding
+  if (isFetchingBranding) {
+    return (
+      <div className="min-h-screen w-full bg-iso-bg flex flex-col items-center justify-center p-4 select-none">
+        <div className="flex flex-col items-center gap-3 animate-in fade-in duration-200">
+          <span className="text-3xl font-bold tracking-tight font-serif text-iso-primary">isomorphic</span>
+          <div className="flex items-center gap-2 text-xs text-iso-textMuted font-mono">
+            <span className="w-3.5 h-3.5 border-2 border-iso-primary border-t-transparent rounded-full animate-spin"></span>
+            Loading...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div 
       className="min-h-screen w-full flex flex-col items-center justify-center p-4 relative overflow-hidden font-sans transition-all duration-300"
@@ -341,50 +356,41 @@ export default function Login({ onLoginSuccess, showToast }) {
         
         {/* Brand Header */}
         <div className="flex flex-col items-center text-center">
-          {isFetchingBranding ? (
-            <div className="h-16 flex items-center justify-center gap-2 text-xs font-mono" style={{ color: forgotFontColor }}>
-              <Loader2 size={16} className="animate-spin" style={{ color: primaryBrandColor }} />
-              <span>Loading organization theme...</span>
-            </div>
-          ) : (
-            <>
-              {logoUrl ? (
-                <img 
-                  src={logoUrl} 
-                  alt={brandTitle} 
-                  className="h-14 md:h-16 max-w-[290px] object-contain mb-3 select-none transition-all duration-200" 
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    const fallback = e.target.nextSibling;
-                    if (fallback) fallback.style.display = 'block';
-                  }} 
-                />
-              ) : null}
+          {logoUrl ? (
+            <img 
+              src={logoUrl} 
+              alt={brandTitle} 
+              className="h-14 md:h-16 max-w-[290px] object-contain mb-3 select-none transition-all duration-200" 
+              onError={(e) => {
+                e.target.style.display = 'none';
+                const fallback = e.target.nextSibling;
+                if (fallback) fallback.style.display = 'block';
+              }} 
+            />
+          ) : null}
 
-              <h1 
-                style={{ 
-                  display: logoUrl ? 'none' : 'block',
-                  color: primaryBrandColor,
-                  fontSize: headerFontSize
-                }} 
-                className="font-bold tracking-tight font-serif mb-1"
-              >
-                {brandTitle}
-              </h1>
+          <h1 
+            style={{ 
+              display: logoUrl ? 'none' : 'block',
+              color: primaryBrandColor,
+              fontSize: headerFontSize
+            }} 
+            className="font-bold tracking-tight font-serif mb-1"
+          >
+            {brandTitle}
+          </h1>
 
-              <span 
-                className="font-mono uppercase tracking-widest block font-medium mt-1"
-                style={{ 
-                  color: forgotFontColor,
-                  fontSize: titleFontSize
-                }}
-              >
-                {viewMode === 'forgot' ? 'Account Recovery' : 
-                 viewMode === 'reset' ? 'Password Reset' : 
-                 (cfg.instituteName ? `${cfg.instituteName} Portal` : (tenantData?.tenantName || 'Enterprise Console'))}
-              </span>
-            </>
-          )}
+          <span 
+            className="font-mono uppercase tracking-widest block font-medium mt-1"
+            style={{ 
+              color: forgotFontColor,
+              fontSize: titleFontSize
+            }}
+          >
+            {viewMode === 'forgot' ? 'Account Recovery' : 
+             viewMode === 'reset' ? 'Password Reset' : 
+             (cfg.instituteName ? `${cfg.instituteName} Portal` : (tenantData?.tenantName || 'Enterprise Console'))}
+          </span>
         </div>
 
         {/* Tenant Fetch Warning (if slug was invalid) */}
