@@ -38,25 +38,25 @@ export default function Login({ onLoginSuccess, showToast }) {
   const [isFetchingBranding, setIsFetchingBranding] = useState(false);
   const [tenantFetchError, setTenantFetchError] = useState(null);
 
-  // Extract Tenant Identifier from Path (/login/:tenant), Query (?tenant=), or Subdomain
+  // Extract Tenant Identifier from Path (/login/:tenant or /tenant/:tenant), Query (?tenant=), or Subdomain
   const resolveTenantSlug = useCallback(() => {
     if (typeof window === 'undefined') return '';
 
-    // 1. Path format: /login/:tenant or /tenant/:tenant
+    // 1. Path format: /login/:tenant or /tenant/:tenant (excluding generic /login or /login/)
     const path = window.location.pathname;
     const loginMatch = path.match(/^\/login\/([a-zA-Z0-9_\-\.]+)/i);
-    if (loginMatch && loginMatch[1]) {
+    if (loginMatch && loginMatch[1] && loginMatch[1].toLowerCase() !== 'admin') {
       return loginMatch[1].trim();
     }
     const tenantMatch = path.match(/^\/tenant\/([a-zA-Z0-9_\-\.]+)/i);
-    if (tenantMatch && tenantMatch[1]) {
+    if (tenantMatch && tenantMatch[1] && tenantMatch[1].toLowerCase() !== 'admin') {
       return tenantMatch[1].trim();
     }
 
     // 2. Query parameter format: ?tenant=acme or ?tenantId=acme or ?org=acme
     const searchParams = new URLSearchParams(window.location.search);
     const qTenant = searchParams.get('tenant') || searchParams.get('tenantId') || searchParams.get('org') || searchParams.get('code');
-    if (qTenant) {
+    if (qTenant && qTenant.trim().toLowerCase() !== 'admin') {
       return qTenant.trim();
     }
 
@@ -72,12 +72,9 @@ export default function Login({ onLoginSuccess, showToast }) {
       }
     }
 
-    // 4. Stored fallback from previous tenant session
+    // Default: No tenant slug given -> Admin / Master portal mode
     try {
-      const storedLast = localStorage.getItem('iso_last_tenant');
-      if (storedLast && storedLast.trim()) {
-        return storedLast.trim();
-      }
+      localStorage.removeItem('iso_last_tenant');
     } catch (e) {}
 
     return '';
@@ -89,6 +86,9 @@ export default function Login({ onLoginSuccess, showToast }) {
       setTenantData(null);
       setTenantFetchError(null);
       resetTenantTheme();
+      try {
+        localStorage.removeItem('iso_last_tenant');
+      } catch (e) {}
       return;
     }
 
@@ -102,9 +102,6 @@ export default function Login({ onLoginSuccess, showToast }) {
       if (res.ok && data && (data.tenantConfig || data.tenantName)) {
         setTenantData(data);
         setTenantFetchError(null);
-        try {
-          localStorage.setItem('iso_last_tenant', slug);
-        } catch (e) {}
         applyTenantTheme(data.tenantConfig || {}, data);
       } else {
         setTenantData(null);
@@ -177,11 +174,6 @@ export default function Login({ onLoginSuccess, showToast }) {
       });
       const data = await res.json();
       if (res.ok) {
-        if (tenantSlug) {
-          try {
-            localStorage.setItem('iso_last_tenant', tenantSlug);
-          } catch (e) {}
-        }
         onLoginSuccess(data);
         const displayName = data.fullName?.trim() || data.username;
         showToast?.(`Welcome, ${displayName}!`);

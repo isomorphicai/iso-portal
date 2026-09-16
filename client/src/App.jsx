@@ -18,21 +18,21 @@ const HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000;
 export const getExplicitUrlTenant = () => {
   if (typeof window === 'undefined') return '';
 
-  // 1. Path format: /login/:tenant or /tenant/:tenant
+  // 1. Path format: /login/:tenant or /tenant/:tenant (excluding generic /login or /login/admin)
   const path = window.location.pathname;
   const loginMatch = path.match(/^\/login\/([a-zA-Z0-9_\-\.]+)/i);
-  if (loginMatch && loginMatch[1]) {
+  if (loginMatch && loginMatch[1] && loginMatch[1].toLowerCase() !== 'admin') {
     return loginMatch[1].trim();
   }
   const tenantMatch = path.match(/^\/tenant\/([a-zA-Z0-9_\-\.]+)/i);
-  if (tenantMatch && tenantMatch[1]) {
+  if (tenantMatch && tenantMatch[1] && tenantMatch[1].toLowerCase() !== 'admin') {
     return tenantMatch[1].trim();
   }
 
   // 2. Query parameter format: ?tenant=acme or ?tenantId=acme or ?org=acme or ?code=acme
   const searchParams = new URLSearchParams(window.location.search);
   const qTenant = searchParams.get('tenant') || searchParams.get('tenantId') || searchParams.get('org') || searchParams.get('code');
-  if (qTenant) {
+  if (qTenant && qTenant.trim().toLowerCase() !== 'admin') {
     return qTenant.trim();
   }
 
@@ -93,11 +93,9 @@ export default function App() {
     setCurrentUser(null);
     localStorage.removeItem('iso_user');
     localStorage.removeItem('iso_session_id');
-    if (explicitTenant) {
-      try {
-        localStorage.setItem('iso_last_tenant', explicitTenant);
-      } catch (e) {}
-    }
+    try {
+      localStorage.removeItem('iso_last_tenant');
+    } catch (e) {}
     setSelectedTenant(null);
     setSelectedBot(null);
     setBots([]);
@@ -181,7 +179,7 @@ export default function App() {
               localStorage.removeItem('iso_user');
               localStorage.removeItem('iso_session_id');
               try {
-                localStorage.setItem('iso_last_tenant', explicitTenant);
+                localStorage.removeItem('iso_last_tenant');
               } catch (e) {}
               setCurrentUser(null);
               resetTenantTheme();
@@ -319,10 +317,15 @@ export default function App() {
 
   // Apply Dynamic Tenant Theme whenever selectedTenant or currentUser changes
   useEffect(() => {
-    const tenantConfig = selectedTenant?.tenantConfig || currentUser?.tenantConfig;
-    if (tenantConfig && Object.keys(tenantConfig).length > 0) {
-      applyTenantTheme(tenantConfig, selectedTenant || { tenantName: currentUser?.tenantName, tenantId: currentUser?.tenantId });
-    } else if (currentUser?.role === 'global_admin' && !selectedTenant) {
+    const isGlobal = currentUser?.role === 'global_admin' || currentUser?.role === 'super_admin' || currentUser?.role === 'admin' || currentUser?.isGlobalAdmin || currentUser?.tenantId === 'admin';
+    if (!isGlobal) {
+      const tenantConfig = selectedTenant?.tenantConfig || currentUser?.tenantConfig;
+      if (tenantConfig && Object.keys(tenantConfig).length > 0) {
+        applyTenantTheme(tenantConfig, selectedTenant || { tenantName: currentUser?.tenantName, tenantId: currentUser?.tenantId });
+      } else {
+        resetTenantTheme();
+      }
+    } else {
       resetTenantTheme();
     }
   }, [selectedTenant, currentUser]);
@@ -418,16 +421,25 @@ export default function App() {
 
       setTenants(list);
       if (list.length > 0) {
-        const targetId = (!isGlobal) ? currentUser?.tenantId : (selectId || currentUser?.tenantId);
-        if (targetId) {
+        if (!isGlobal) {
+          const targetId = currentUser?.tenantId;
           const t = list.find(item => 
             (item._id && item._id.toString() === targetId) ||
             (item.tenantId && item.tenantId.toLowerCase() === targetId.toLowerCase()) ||
             (item.code && item.code.toLowerCase() === targetId.toLowerCase())
           );
           setSelectedTenant(t || list[0]);
-        } else if (!selectedTenant) {
-          setSelectedTenant(list[0]);
+        } else {
+          if (selectId) {
+            const t = list.find(item => 
+              (item._id && item._id.toString() === selectId) ||
+              (item.tenantId && item.tenantId.toLowerCase() === selectId.toLowerCase()) ||
+              (item.code && item.code.toLowerCase() === selectId.toLowerCase())
+            );
+            setSelectedTenant(t || null);
+          } else if (!selectedTenant) {
+            setSelectedTenant(null);
+          }
         }
       } else {
         setSelectedTenant(null);
