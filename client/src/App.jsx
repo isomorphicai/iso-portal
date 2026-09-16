@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
-import Header from './components/Header';
 import Toast from './components/Toast';
 import Login from './components/Login';
 import { apiUrl } from './config/api';
@@ -403,21 +402,11 @@ export default function App() {
         selectedTenant={selectedTenant}
         showToast={showToast}
         onLogout={() => handleLogout('manual')}
+        onNavigate={handleNavigate}
       />
 
       {/* Content Viewport */}
       <main className="flex-1 flex flex-col h-full min-w-0 overflow-hidden">
-        <Header 
-          selectedTenant={selectedTenant} 
-          selectedBot={selectedBot} 
-          selectedPortal={selectedPortal}
-          activeRoute={activeRoute}
-          currentUser={currentUser}
-          onNavigate={handleNavigate}
-          showToast={showToast}
-          onLogout={() => handleLogout('manual')}
-        />
-        
         <div className="flex-1 p-6 md:p-8 min-h-0 flex flex-col overflow-y-auto">
           {activeRoute ? (
             React.createElement(activeRoute.component, {

@@ -343,7 +343,7 @@ export default function Overview({ selectedTenant, selectedBot, setSelectedBot, 
   const ui = botForm.botUIConfigs || {};
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="w-full flex flex-col gap-6">
       
       {/* Top Header & Fast Action Toolbar */}
       <div className="border-b border-iso-border pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -353,7 +353,7 @@ export default function Overview({ selectedTenant, selectedBot, setSelectedBot, 
             <span>/</span>
             <span className="text-iso-accent font-bold">{selectedBot.code || selectedBot.botId}</span>
           </div>
-          <h1 className="text-2xl font-serif font-bold text-iso-primary flex items-center gap-2.5">
+          <h1 className="text-3xl font-serif font-bold tracking-tight text-iso-primary flex items-center gap-2.5">
             <span>{botForm.name || selectedBot.name}</span>
             <span className={`px-2 py-0.5 text-[9px] font-mono font-bold rounded-sm border ${
               botForm.status === 'active' 

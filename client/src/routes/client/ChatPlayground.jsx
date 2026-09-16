@@ -352,18 +352,18 @@ export default function ChatPlayground({
   });
 
   return (
-    <div className="w-full h-full flex flex-col gap-3 min-h-0 overflow-hidden">
+    <div className="w-full h-full flex flex-col gap-4 min-h-0 overflow-hidden">
       
       {/* Context Selectors Header */}
-      <div className="border-b border-iso-border pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+      <div className="border-b border-iso-border pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold tracking-tight text-iso-primary">Chatbot Playground</h1>
-            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded text-[10px] font-mono font-medium">
+            <h1 className="text-3xl font-serif tracking-tight text-iso-primary font-bold">Chatbot Playground</h1>
+            <span className="px-2 py-0.5 bg-iso-bgSecondary text-iso-primary border border-iso-border rounded-sm text-[9px] font-mono font-bold tracking-wider uppercase">
               RAG Engine
             </span>
           </div>
-          <p className="text-xs text-iso-textMuted mt-0.5">
+          <p className="text-xs text-iso-textMuted mt-1">
             Test and inspect vector retrieval, prompt grounding, and generated answers.
           </p>
         </div>

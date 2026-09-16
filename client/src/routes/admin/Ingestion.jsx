@@ -75,6 +75,7 @@ export default function Ingestion({
   const [sortField, setSortField] = useState('createdAt');
   const [sortAsc, setSortAsc] = useState(false);
   const [sourcePage, setSourcePage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
 
   // Inspect Chunks Modal state
   const [selectedSourceForChunks, setSelectedSourceForChunks] = useState(null);
@@ -721,19 +722,37 @@ export default function Ingestion({
     return result;
   }, [sources, searchQuery, sortField, sortAsc]);
 
+  // Reset page to 1 when search query, sort, or active bot/tenant changes
+  useEffect(() => {
+    setSourcePage(1);
+  }, [searchQuery, sortField, sortAsc, activeTenantId, activeBotId]);
+
+  // Adjust sourcePage if filtered results length shrinks below current page
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredAndSortedSources.length / pageSize));
+    if (sourcePage > maxPage) {
+      setSourcePage(maxPage);
+    }
+  }, [filteredAndSortedSources.length, pageSize, sourcePage]);
+
+  // Paginated subset of sources
+  const paginatedSources = useMemo(() => {
+    const start = (sourcePage - 1) * pageSize;
+    return filteredAndSortedSources.slice(start, start + pageSize);
+  }, [filteredAndSortedSources, sourcePage, pageSize]);
+
   const activeIndexName = activeTenantId && activeBotId ? `${activeTenantId}_${activeBotId}` : '';
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-7xl mx-auto w-full animate-in fade-in duration-200">
+    <div className="w-full flex flex-col gap-6">
       
       {/* Top Header & Tenant Selector */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-iso-border pb-4">
+      <div className="border-b border-iso-border pb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-bold font-serif text-iso-primary flex items-center gap-2">
-            <Layers className="text-iso-accent" size={22} />
+          <h1 className="text-3xl font-serif tracking-tight text-iso-primary mb-1">
             Knowledge Base &amp; Document Ingestion
           </h1>
-          <p className="text-xs text-iso-textMuted mt-1">
+          <p className="text-xs text-iso-textMuted">
             Manage multi-tenant knowledge sources, recursive web crawling, vector partitioning, and background batch ingestion.
           </p>
         </div>
@@ -840,8 +859,25 @@ export default function Ingestion({
             </div>
 
             <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 text-[11px] font-mono text-iso-textMuted">
+                <span>Show:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setSourcePage(1);
+                  }}
+                  className="bg-iso-bg border border-iso-border rounded px-1.5 py-1 text-xs text-iso-text outline-none cursor-pointer"
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+
               <span className="text-[11px] font-mono text-iso-textMuted">
-                Showing <strong className="text-iso-primary">{filteredAndSortedSources.length}</strong> of {sources.length} sources
+                Showing <strong className="text-iso-primary">{filteredAndSortedSources.length === 0 ? 0 : (sourcePage - 1) * pageSize + 1}-{Math.min(sourcePage * pageSize, filteredAndSortedSources.length)}</strong> of {filteredAndSortedSources.length}
               </span>
               <button
                 type="button"
@@ -927,7 +963,7 @@ export default function Ingestion({
                       </td>
                     </tr>
                   ) : (
-                    filteredAndSortedSources.map((source) => {
+                    paginatedSources.map((source) => {
                       const isExpired = source.isExpired || (source.linkExpiry && new Date(source.linkExpiry) < new Date());
                       return (
                         <tr key={source._id} className="hover:bg-iso-bgSecondary/60 transition-colors">
@@ -1023,6 +1059,16 @@ export default function Ingestion({
                 </tbody>
               </table>
             </div>
+
+            {/* Ingested URLs Table Pagination */}
+            {filteredAndSortedSources.length > 0 && (
+              <TablePagination
+                currentPage={sourcePage}
+                totalItems={filteredAndSortedSources.length}
+                pageSize={pageSize}
+                onPageChange={setSourcePage}
+              />
+            )}
           </div>
 
         </div>

@@ -524,20 +524,20 @@ export default function ConversationHistory({
   ];
 
   return (
-    <div className="w-full h-full flex flex-col gap-3 min-h-0">
+    <div className="w-full h-full flex flex-col gap-4 min-h-0">
       
       {/* Top Header & Telemetry */}
-      <div className="border-b border-iso-border pb-3 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+      <div className="border-b border-iso-border pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-serif tracking-tight text-iso-primary font-bold">
+            <h1 className="text-3xl font-serif tracking-tight text-iso-primary font-bold">
               Conversation History
             </h1>
             <span className="px-2 py-0.5 bg-iso-bgSecondary text-iso-primary border border-iso-border rounded-sm text-[9px] font-mono font-bold tracking-wider uppercase">
               Audit Archive
             </span>
           </div>
-          <p className="text-[11px] text-iso-textMuted mt-0.5">
+          <p className="text-xs text-iso-textMuted mt-1">
             Complete audit trail of user inquiries, model responses, intent routing, and RAG knowledge citations.
           </p>
         </div>
