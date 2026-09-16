@@ -183,7 +183,8 @@ export default function Login({ onLoginSuccess, showToast }) {
           } catch (e) {}
         }
         onLoginSuccess(data);
-        showToast?.(`Welcome back, ${data.username}! Access level: ${data.role}`);
+        const displayName = data.fullName?.trim() || data.username;
+        showToast?.(`Welcome, ${displayName}!`);
       } else {
         setError(data.error || 'Invalid username or password.');
       }
