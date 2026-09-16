@@ -14,6 +14,43 @@ const INACTIVITY_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 // Heartbeat interval: send heartbeat every 2 minutes while active
 const HEARTBEAT_INTERVAL_MS = 2 * 60 * 1000;
 
+// Helper to extract explicit tenant identifier from URL path, query params, or subdomain
+export const getExplicitUrlTenant = () => {
+  if (typeof window === 'undefined') return '';
+
+  // 1. Path format: /login/:tenant or /tenant/:tenant
+  const path = window.location.pathname;
+  const loginMatch = path.match(/^\/login\/([a-zA-Z0-9_\-\.]+)/i);
+  if (loginMatch && loginMatch[1]) {
+    return loginMatch[1].trim();
+  }
+  const tenantMatch = path.match(/^\/tenant\/([a-zA-Z0-9_\-\.]+)/i);
+  if (tenantMatch && tenantMatch[1]) {
+    return tenantMatch[1].trim();
+  }
+
+  // 2. Query parameter format: ?tenant=acme or ?tenantId=acme or ?org=acme or ?code=acme
+  const searchParams = new URLSearchParams(window.location.search);
+  const qTenant = searchParams.get('tenant') || searchParams.get('tenantId') || searchParams.get('org') || searchParams.get('code');
+  if (qTenant) {
+    return qTenant.trim();
+  }
+
+  // 3. Subdomain format: acme.portal.domain.com
+  const host = window.location.hostname;
+  if (host && !['localhost', '127.0.0.1'].includes(host) && !host.includes('.onrender.com')) {
+    const parts = host.split('.');
+    if (parts.length > 2) {
+      const sub = parts[0].toLowerCase();
+      if (!['www', 'portal', 'app', 'admin', 'api', 'stage', 'dev'].includes(sub)) {
+        return sub;
+      }
+    }
+  }
+
+  return '';
+};
+
 export default function App() {
   // Authentication State
   const [currentUser, setCurrentUser] = useState(null);
@@ -50,11 +87,17 @@ export default function App() {
 
   const handleLogout = async (reason = 'manual') => {
     const activeSessionId = currentUser?.sessionId || localStorage.getItem('iso_session_id');
+    const explicitTenant = getExplicitUrlTenant();
     
     // Clear local storage and state immediately
     setCurrentUser(null);
     localStorage.removeItem('iso_user');
     localStorage.removeItem('iso_session_id');
+    if (explicitTenant) {
+      try {
+        localStorage.setItem('iso_last_tenant', explicitTenant);
+      } catch (e) {}
+    }
     setSelectedTenant(null);
     setSelectedBot(null);
     setBots([]);
@@ -80,13 +123,16 @@ export default function App() {
       showToast('You have been logged out due to 2 hours of inactivity.', 'warning');
     } else if (reason === 'manual') {
       showToast('Logged out successfully.', 'info');
+    } else if (reason === 'tenant_switch') {
+      showToast(explicitTenant ? `Switched to organization "${explicitTenant}". Please log in.` : 'Switched organization. Please log in.', 'info');
     }
   };
 
-  // Check initial session validity on portal startup
+  // Check initial session validity on portal startup and enforce tenant isolation
   useEffect(() => {
     const verifyInitialSession = async () => {
       try {
+        const explicitTenant = getExplicitUrlTenant();
         let savedSessionId = localStorage.getItem('iso_session_id');
         if (!savedSessionId) {
           const savedUser = localStorage.getItem('iso_user');
@@ -117,7 +163,48 @@ export default function App() {
         const data = await res.json();
 
         if (res.ok && data.active && data.user) {
-          // Active session confirmed -> automatically proceed into portal
+          // Cross-tenant verification:
+          // If the URL specifically requests a tenant, verify that the logged-in session matches that tenant
+          if (explicitTenant) {
+            const explicitNorm = explicitTenant.toLowerCase();
+            const sessionTenantId = (data.user.tenantId || '').toLowerCase();
+            const sessionTenantName = (data.user.tenantName || '').toLowerCase();
+            const sessionTenantCode = (data.user.code || '').toLowerCase();
+
+            const isMatchingTenant =
+              sessionTenantId === explicitNorm ||
+              sessionTenantName === explicitNorm ||
+              sessionTenantCode === explicitNorm;
+
+            if (!isMatchingTenant) {
+              console.warn(`[Auth] URL tenant "${explicitTenant}" does not match session tenant "${data.user.tenantId}". Switching to login page.`);
+              localStorage.removeItem('iso_user');
+              localStorage.removeItem('iso_session_id');
+              try {
+                localStorage.setItem('iso_last_tenant', explicitTenant);
+              } catch (e) {}
+              setCurrentUser(null);
+              resetTenantTheme();
+
+              // Terminate old session on backend
+              try {
+                fetch(apiUrl('/api/logout'), {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-session-id': savedSessionId
+                  },
+                  body: JSON.stringify({ sessionId: savedSessionId, reason: 'tenant_switch' })
+                });
+              } catch (e) {}
+
+              showToast(`Switched to organization "${explicitTenant}". Please log in.`, 'info');
+              setIsVerifyingSession(false);
+              return;
+            }
+          }
+
+          // Active session confirmed for matching tenant -> proceed into portal
           setCurrentUser(data.user);
           localStorage.setItem('iso_user', JSON.stringify(data.user));
           localStorage.setItem('iso_session_id', data.sessionId);
@@ -144,6 +231,31 @@ export default function App() {
 
     verifyInitialSession();
   }, []);
+
+  // Listen for browser popstate/navigation changes to detect tenant changes while in the app
+  useEffect(() => {
+    const handleUrlTenantChange = () => {
+      const explicitTenant = getExplicitUrlTenant();
+      if (explicitTenant && currentUser) {
+        const explicitNorm = explicitTenant.toLowerCase();
+        const sessionTenantId = (currentUser.tenantId || '').toLowerCase();
+        const sessionTenantName = (currentUser.tenantName || '').toLowerCase();
+        const sessionTenantCode = (currentUser.code || '').toLowerCase();
+
+        const isMatchingTenant =
+          sessionTenantId === explicitNorm ||
+          sessionTenantName === explicitNorm ||
+          sessionTenantCode === explicitNorm;
+
+        if (!isMatchingTenant) {
+          handleLogout('tenant_switch');
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handleUrlTenantChange);
+    return () => window.removeEventListener('popstate', handleUrlTenantChange);
+  }, [currentUser]);
 
   // Inactivity & Activity Tracking Listeners (2 hours inactivity logout)
   useEffect(() => {
